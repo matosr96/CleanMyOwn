@@ -1,0 +1,199 @@
+//
+//  LoginItemsView.swift
+//  CleanMyOwn
+//
+//  Lista los Launch Agents y Daemons del sistema, con toggle de habilitar/
+//  deshabilitar para los del usuario.
+//
+
+import SwiftUI
+
+struct LoginItemsView: View {
+    @StateObject private var service = LaunchAgentService()
+    @State private var query: String = ""
+    @State private var actionError: String?
+
+    private var grouped: [(LaunchAgentScope, [LaunchAgent])] {
+        let filtered = query.isEmpty ? service.agents : service.agents.filter {
+            $0.label.localizedCaseInsensitiveContains(query)
+            || $0.program?.localizedCaseInsensitiveContains(query) ?? false
+        }
+        let dict = Dictionary(grouping: filtered, by: { $0.scope })
+        return [.userAgent, .systemAgent, .systemDaemon].compactMap { scope in
+            dict[scope].map { (scope, $0) }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            header
+            searchAndStats
+            list
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.background)
+        .onAppear { if service.agents.isEmpty { service.reload() } }
+        .alert("Error", isPresented: Binding(
+            get: { actionError != nil },
+            set: { if !$0 { actionError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(actionError ?? "")
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("INICIO").font(.label).foregroundStyle(Theme.textTertiary)
+                Text("Launch Agents y Daemons").font(.displayMedium).foregroundStyle(Theme.textPrimary)
+                Text("Procesos que se cargan al iniciar sesión o al arrancar el Mac.")
+                    .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+            }
+            Spacer()
+            Button(action: { service.reload() }) {
+                Label(service.isLoading ? "Cargando…" : "Actualizar", systemImage: "arrow.clockwise")
+                    .padding(.horizontal, 14).padding(.vertical, 9)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
+                    .foregroundStyle(Theme.textPrimary)
+            }.buttonStyle(.plain).disabled(service.isLoading)
+        }
+    }
+
+    private var searchAndStats: some View {
+        HStack(spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.textTertiary)
+                TextField("Buscar por label o programa…", text: $query)
+                    .textFieldStyle(.plain).foregroundStyle(Theme.textPrimary).font(.bodyMedium)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
+            .frame(maxWidth: 360)
+
+            Spacer()
+            statBadge(label: "USUARIO", value: count(.userAgent), tint: Theme.success)
+            statBadge(label: "SISTEMA", value: count(.systemAgent), tint: Theme.accent)
+            statBadge(label: "DAEMONS", value: count(.systemDaemon), tint: Theme.warning)
+        }
+    }
+
+    private func count(_ scope: LaunchAgentScope) -> String {
+        "\(service.agents.filter { $0.scope == scope }.count)"
+    }
+
+    private func statBadge(label: String, value: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.label).foregroundStyle(Theme.textTertiary)
+            Text(value).font(.titleMedium).foregroundStyle(tint)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
+    }
+
+    private var list: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                ForEach(grouped, id: \.0) { (scope, agents) in
+                    sectionView(scope: scope, agents: agents)
+                }
+                if !service.isLoading && grouped.isEmpty {
+                    Text("Sin resultados.").font(.bodyMedium).foregroundStyle(Theme.textTertiary).padding(.top, 40)
+                }
+            }
+        }
+    }
+
+    private func sectionView(scope: LaunchAgentScope, agents: [LaunchAgent]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(scope.rawValue).font(.titleMedium).foregroundStyle(Theme.textPrimary)
+                if scope.requiresAdmin {
+                    Text("Sólo lectura").font(.label).foregroundStyle(Theme.warning)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Capsule().fill(Theme.warning.opacity(0.12)))
+                }
+                Spacer()
+                Text("\(agents.count) items").font(.bodySmall).foregroundStyle(Theme.textTertiary)
+            }
+            VStack(spacing: 4) {
+                ForEach(agents) { agent in
+                    AgentRow(agent: agent, onToggle: { newValue in
+                        Task {
+                            if let err = await service.setEnabled(newValue, agent: agent) {
+                                actionError = err
+                            }
+                        }
+                    })
+                }
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: Theme.cornerMedium).fill(Theme.cardGradient))
+            .overlay(RoundedRectangle(cornerRadius: Theme.cornerMedium).stroke(Color.white.opacity(0.04), lineWidth: 1))
+        }
+    }
+}
+
+private struct AgentRow: View {
+    let agent: LaunchAgent
+    let onToggle: (Bool) -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6).fill(statusColor.opacity(0.15)).frame(width: 32, height: 32)
+                Image(systemName: statusIcon)
+                    .foregroundStyle(statusColor).font(.system(size: 14, weight: .semibold))
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(agent.label).font(.bodyMedium).foregroundStyle(Theme.textPrimary).lineLimit(1)
+                if let p = agent.program {
+                    Text(p).font(.bodySmall).foregroundStyle(Theme.textTertiary).lineLimit(1).truncationMode(.middle)
+                }
+            }
+            Spacer()
+            HStack(spacing: 6) {
+                if agent.runAtLoad { badge("RUN AT LOAD", tint: Theme.accent) }
+                if agent.keepAlive { badge("KEEP ALIVE", tint: Theme.warning) }
+                if agent.isDisabledByFile { badge("DISABLED", tint: Theme.danger) }
+            }
+            if agent.scope == .userAgent {
+                Toggle("", isOn: Binding(
+                    get: { !agent.isDisabledByFile },
+                    set: { onToggle($0) }
+                ))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .labelsHidden()
+            } else {
+                Image(systemName: agent.isLoaded ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(agent.isLoaded ? Theme.success : Theme.textTertiary)
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.02)))
+    }
+
+    private var statusColor: Color {
+        if agent.isDisabledByFile { return Theme.danger }
+        if agent.isLoaded { return Theme.success }
+        return Theme.textTertiary
+    }
+    private var statusIcon: String {
+        if agent.isDisabledByFile { return "xmark" }
+        if agent.isLoaded { return "bolt.fill" }
+        return "circle"
+    }
+
+    private func badge(_ text: String, tint: Color) -> some View {
+        Text(text).font(.label).foregroundStyle(tint)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(Capsule().fill(tint.opacity(0.12)))
+    }
+}
+
+#Preview {
+    LoginItemsView().frame(width: 1000, height: 700)
+}

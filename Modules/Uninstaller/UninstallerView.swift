@@ -1,0 +1,413 @@
+//
+//  UninstallerView.swift
+//  CleanMyOwn
+//
+//  Lista de apps instaladas, con búsqueda. Al seleccionar una app se buscan
+//  sus archivos asociados (Application Support, Caches, Preferences, etc.) y
+//  el usuario puede elegir qué incluir en el desinstalado (todo va a Papelera).
+//
+
+import AppKit
+import SwiftUI
+
+struct UninstallerView: View {
+    @StateObject private var catalog = AppCatalogService()
+    @StateObject private var admin = AdminSessionService()
+    @State private var query: String = ""
+    @State private var selectedAppID: String?
+    @State private var selectedApp: AppEntry?
+    @State private var associated: [AssociatedItem] = []
+    @State private var loadingAssoc = false
+    @State private var assocSelection: Set<UUID> = []
+    @State private var showingConfirm = false
+    @State private var isUninstalling = false
+    @State private var showingResult = false
+    @State private var resultMessage = ""
+    @State private var resultIsSuccess = true
+
+    private var filteredApps: [AppEntry] {
+        guard !query.isEmpty else { return catalog.apps }
+        return catalog.apps.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header.padding(.horizontal, 32).padding(.top, 32).padding(.bottom, 12)
+            adminBanner.padding(.horizontal, 32).padding(.bottom, 18)
+
+            HStack(spacing: 18) {
+                appList
+                detail
+            }
+            .padding(.horizontal, 32).padding(.bottom, 32)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.background)
+        .onAppear {
+            if catalog.apps.isEmpty { catalog.reload() }
+        }
+        .onDisappear { admin.deactivate() }
+        .alert("¿Desinstalar \(selectedApp?.name ?? "") permanentemente?", isPresented: $showingConfirm) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Eliminar permanentemente", role: .destructive) {
+                Task { await runUninstall() }
+            }
+        } message: {
+            Text("La app y los archivos asociados seleccionados se borrarán de forma permanente del disco. Esta acción NO se puede deshacer.")
+        }
+        .alert(resultIsSuccess ? "Desinstalación completada" : "No se pudo eliminar todo",
+               isPresented: $showingResult) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(resultMessage)
+        }
+    }
+
+    // MARK: - Admin banner
+
+    private var adminBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: admin.isActive ? "lock.open.fill" : "lock.fill")
+                .foregroundStyle(admin.isActive ? Theme.success : Theme.warning)
+                .font(.system(size: 18, weight: .semibold))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(admin.isActive ? "Modo administrador activo" : "Modo administrador desactivado")
+                    .font(.titleMedium).foregroundStyle(Theme.textPrimary)
+                Text(admin.isActive
+                     ? "Las apps protegidas se eliminarán sin pedir contraseña adicional durante esta sesión."
+                     : "Algunas apps en /Applications requieren contraseña para borrarse. Activa este modo y la pedimos una sola vez.")
+                    .font(.bodySmall).foregroundStyle(Theme.textSecondary)
+            }
+            Spacer()
+            if admin.isActive {
+                Button(action: { admin.deactivate() }) {
+                    Text("Desactivar").font(.bodyMedium)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
+                        .foregroundStyle(Theme.textPrimary)
+                }.buttonStyle(.plain)
+            } else {
+                Button(action: { Task { await admin.activate() } }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "key.fill")
+                        Text("Activar").font(.bodyMedium.weight(.semibold))
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Theme.brandGradient))
+                    .foregroundStyle(.white)
+                }.buttonStyle(.plain)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.cornerMedium)
+                .fill(admin.isActive ? Theme.success.opacity(0.10) : Theme.warning.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.cornerMedium)
+                .stroke((admin.isActive ? Theme.success : Theme.warning).opacity(0.25), lineWidth: 1)
+        )
+    }
+
+    private var header: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("DESINSTALADOR")
+                    .font(.label).foregroundStyle(Theme.textTertiary)
+                Text("Aplicaciones instaladas")
+                    .font(.displayMedium).foregroundStyle(Theme.textPrimary)
+                Text("Desinstala una app y todos sus archivos asociados de forma limpia.")
+                    .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+            }
+            Spacer()
+            Button(action: { catalog.reload() }) {
+                Label(catalog.isLoading ? "Cargando…" : "Actualizar", systemImage: "arrow.clockwise")
+                    .font(.bodyMedium)
+                    .padding(.horizontal, 14).padding(.vertical, 9)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
+                    .foregroundStyle(Theme.textPrimary)
+            }
+            .buttonStyle(.plain)
+            .disabled(catalog.isLoading)
+        }
+    }
+
+    // MARK: - Lista
+
+    private var appList: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.textTertiary)
+                TextField("Buscar app…", text: $query)
+                    .textFieldStyle(.plain)
+                    .foregroundStyle(Theme.textPrimary)
+                    .font(.bodyMedium)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
+
+            ScrollView {
+                LazyVStack(spacing: 4) {
+                    ForEach(filteredApps) { app in
+                        AppRow(app: app, isSelected: selectedAppID == app.id) {
+                            select(app: app)
+                        }
+                    }
+                    if !catalog.isLoading && filteredApps.isEmpty {
+                        Text(query.isEmpty ? "No se encontraron aplicaciones." : "Sin resultados para «\(query)».")
+                            .font(.bodyMedium).foregroundStyle(Theme.textTertiary)
+                            .padding(20)
+                    }
+                }
+            }
+        }
+        .frame(width: 320)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: Theme.cornerLarge).fill(Theme.cardGradient))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge).stroke(Color.white.opacity(0.04), lineWidth: 1))
+    }
+
+    // MARK: - Detalle
+
+    private var detail: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            if let app = selectedApp {
+                detailHeader(app: app)
+                associatedSection
+                Spacer(minLength: 0)
+                actionBar(app: app)
+            } else {
+                Spacer()
+                VStack(spacing: 12) {
+                    Image(systemName: "shippingbox").font(.system(size: 50)).foregroundStyle(Theme.textTertiary)
+                    Text("Selecciona una app a la izquierda")
+                        .font(.titleMedium).foregroundStyle(Theme.textSecondary)
+                }
+                .frame(maxWidth: .infinity)
+                Spacer()
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: Theme.cornerLarge).fill(Theme.cardGradient))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge).stroke(Color.white.opacity(0.04), lineWidth: 1))
+    }
+
+    private func detailHeader(app: AppEntry) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            if let icon = app.icon {
+                Image(nsImage: icon).resizable().frame(width: 56, height: 56)
+            } else {
+                RoundedRectangle(cornerRadius: 12).fill(Theme.card).frame(width: 56, height: 56)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(app.name).font(.titleLarge).foregroundStyle(Theme.textPrimary)
+                if let v = app.version { Text("Versión \(v)").font(.bodySmall).foregroundStyle(Theme.textSecondary) }
+                if let bid = app.bundleID { Text(bid).font(.bodySmall).foregroundStyle(Theme.textTertiary) }
+                Text("\(app.sizeBytes.formattedAsBytes) · \(app.location.path)")
+                    .font(.bodySmall).foregroundStyle(Theme.textTertiary).lineLimit(1).truncationMode(.middle)
+            }
+            Spacer()
+        }
+    }
+
+    private var associatedSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Archivos asociados").font(.titleMedium).foregroundStyle(Theme.textPrimary)
+                Spacer()
+                if loadingAssoc { ProgressView().controlSize(.small) }
+                else if !associated.isEmpty {
+                    Text(associated.reduce(Int64(0)) { $0 + $1.sizeBytes }.formattedAsBytes)
+                        .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+                }
+            }
+
+            if !loadingAssoc && associated.isEmpty {
+                Text("No se encontraron archivos asociados.")
+                    .font(.bodySmall).foregroundStyle(Theme.textTertiary)
+                    .padding(.vertical, 8)
+            } else {
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(associated) { item in
+                            HStack(spacing: 10) {
+                                Toggle(isOn: Binding(
+                                    get: { assocSelection.contains(item.id) },
+                                    set: { v in
+                                        if v { assocSelection.insert(item.id) }
+                                        else { assocSelection.remove(item.id) }
+                                    }
+                                )) { EmptyView() }
+                                    .toggleStyle(CheckboxToggleStyle(partial: false, tint: Theme.warning))
+
+                                Text(item.category)
+                                    .font(.label).foregroundStyle(Theme.warning)
+                                    .padding(.horizontal, 8).padding(.vertical, 3)
+                                    .background(Capsule().fill(Theme.warning.opacity(0.12)))
+
+                                Text(item.url.path).font(.bodySmall)
+                                    .foregroundStyle(Theme.textSecondary)
+                                    .lineLimit(1).truncationMode(.middle)
+                                Spacer()
+                                Text(item.sizeBytes.formattedAsBytes)
+                                    .font(.bodySmall).foregroundStyle(Theme.textSecondary).monospacedDigit()
+                            }
+                            .padding(.horizontal, 10).padding(.vertical, 8)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
+                        }
+                    }
+                }
+                .frame(maxHeight: 320)
+            }
+        }
+    }
+
+    private func actionBar(app: AppEntry) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("ESPACIO TOTAL A LIBERAR").font(.label).foregroundStyle(Theme.textTertiary)
+                Text(totalToFree(app: app).formattedAsBytes)
+                    .font(.titleLarge).foregroundStyle(Theme.success)
+            }
+            Spacer()
+            Button(action: { showingConfirm = true }) {
+                HStack(spacing: 8) {
+                    if isUninstalling { ProgressView().controlSize(.small).tint(.white) }
+                    Text(isUninstalling ? "Desinstalando…" : "Desinstalar").font(.titleMedium)
+                }
+                .padding(.horizontal, 22).padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.cornerMedium)
+                        .fill(LinearGradient(colors: [Theme.danger, Color(red: 1.0, green: 0.55, blue: 0.40)],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing))
+                )
+                .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+            .disabled(isUninstalling || app.isSystemApp)
+            .opacity(app.isSystemApp ? 0.4 : 1)
+        }
+    }
+
+    private func totalToFree(app: AppEntry) -> Int64 {
+        app.sizeBytes + associated.filter { assocSelection.contains($0.id) }.reduce(0) { $0 + $1.sizeBytes }
+    }
+
+    // MARK: - Acciones
+
+    private func select(app: AppEntry) {
+        selectedAppID = app.id
+        selectedApp = app
+        associated = []
+        assocSelection = []
+        loadingAssoc = true
+        Task {
+            let items = await catalog.findAssociatedFiles(for: app)
+            await MainActor.run {
+                self.associated = items
+                self.assocSelection = Set(items.map(\.id))
+                self.loadingAssoc = false
+            }
+        }
+    }
+
+    private func runUninstall() async {
+        guard let app = selectedApp else { return }
+        isUninstalling = true
+        let toRemove = associated.filter { assocSelection.contains($0.id) }
+
+        var result = await catalog.uninstall(app, includingAssociated: toRemove, adminSession: admin)
+
+        // Si se requiere admin y el modo no estaba activo, lo activamos AHORA
+        // (un único prompt) y reintentamos automáticamente.
+        if result.needsAdmin {
+            let activated = await admin.activate()
+            if activated {
+                result = await catalog.uninstall(app, includingAssociated: toRemove, adminSession: admin)
+            } else {
+                isUninstalling = false
+                showResult(success: false,
+                           message: admin.lastError ?? "Esta app requiere autorización de administrador.")
+                return
+            }
+        }
+
+        isUninstalling = false
+
+        let killedNote = result.processesKilled > 0
+            ? " Cerré \(result.processesKilled) proceso\(result.processesKilled == 1 ? "" : "s") activo\(result.processesKilled == 1 ? "" : "s") antes de borrar."
+            : ""
+
+        if result.appRemoved && result.failedURLs.isEmpty {
+            clearSelection()
+            showResult(success: true,
+                       message: "Se liberaron \(result.freedBytes.formattedAsBytes).\(killedNote)")
+        } else if !result.appRemoved {
+            showResult(success: false,
+                       message: "La app sigue en disco.\(killedNote) " + (result.errors.first ?? "Operación cancelada."))
+        } else {
+            let lines = result.errors.prefix(6).joined(separator: "\n")
+            showResult(success: false,
+                       message: "Se liberaron \(result.freedBytes.formattedAsBytes).\(killedNote)\nAlgunos archivos asociados quedaron:\n\n\(lines)")
+            clearSelection()
+        }
+    }
+
+    private func clearSelection() {
+        selectedApp = nil
+        selectedAppID = nil
+        associated = []
+        assocSelection = []
+    }
+
+    private func showResult(success: Bool, message: String) {
+        resultIsSuccess = success
+        resultMessage = message
+        showingResult = true
+    }
+}
+
+private struct AppRow: View {
+    let app: AppEntry
+    let isSelected: Bool
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                if let icon = app.icon {
+                    Image(nsImage: icon).resizable().frame(width: 28, height: 28)
+                } else {
+                    RoundedRectangle(cornerRadius: 6).fill(Theme.card).frame(width: 28, height: 28)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
+                        Text(app.name).font(.bodyMedium).foregroundStyle(Theme.textPrimary).lineLimit(1)
+                        if app.requiresAdmin {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 9))
+                                .foregroundStyle(Theme.warning)
+                                .help("Requiere autorización de administrador")
+                        }
+                    }
+                    Text(app.sizeBytes.formattedAsBytes).font(.bodySmall).foregroundStyle(Theme.textTertiary)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Color.white.opacity(0.08) : (hovering ? Color.white.opacity(0.03) : Color.clear))
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
+#Preview {
+    UninstallerView().frame(width: 1000, height: 700)
+}

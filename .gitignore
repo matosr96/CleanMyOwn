@@ -1,0 +1,22 @@
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# Compiled .app bundle (lo regeneramos con run.sh)
+CleanMyOwn.app/
+
+# macOS
+.DS_Store
+
+# Editores
+.idea/
+.vscode/
+*.swp
+*~
