@@ -31,18 +31,20 @@ struct UninstallerView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header.padding(.horizontal, 32).padding(.top, 32).padding(.bottom, 12)
-            adminBanner.padding(.horizontal, 32).padding(.bottom, 18)
+        ZStack {
+            AnimatedBackground(intensity: 0.28)
+            VStack(alignment: .leading, spacing: 0) {
+                header.padding(.horizontal, 32).padding(.top, 32).padding(.bottom, 12)
+                adminBanner.padding(.horizontal, 32).padding(.bottom, 18)
 
-            HStack(spacing: 18) {
-                appList
-                detail
+                HStack(spacing: 18) {
+                    appList
+                    detail
+                }
+                .padding(.horizontal, 32).padding(.bottom, 32)
             }
-            .padding(.horizontal, 32).padding(.bottom, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.background)
         .onAppear {
             if catalog.apps.isEmpty { catalog.reload() }
         }
@@ -122,12 +124,8 @@ struct UninstallerView: View {
             Spacer()
             Button(action: { catalog.reload() }) {
                 Label(catalog.isLoading ? "Cargando…" : "Actualizar", systemImage: "arrow.clockwise")
-                    .font(.bodyMedium)
-                    .padding(.horizontal, 14).padding(.vertical, 9)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
-                    .foregroundStyle(Theme.textPrimary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PolishedSecondaryButtonStyle())
             .disabled(catalog.isLoading)
         }
     }
@@ -136,27 +134,37 @@ struct UninstallerView: View {
 
     private var appList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundStyle(Theme.textTertiary)
-                TextField("Buscar app…", text: $query)
-                    .textFieldStyle(.plain)
-                    .foregroundStyle(Theme.textPrimary)
-                    .font(.bodyMedium)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 10)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
+            SearchField(text: $query, placeholder: "Buscar app…")
 
             ScrollView {
                 LazyVStack(spacing: 4) {
-                    ForEach(filteredApps) { app in
-                        AppRow(app: app, isSelected: selectedAppID == app.id) {
-                            select(app: app)
+                    if catalog.isLoading && catalog.apps.isEmpty {
+                        ForEach(0..<8, id: \.self) { _ in
+                            HStack(spacing: 12) {
+                                RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.08))
+                                    .frame(width: 28, height: 28)
+                                VStack(alignment: .leading, spacing: 6) {
+                                    RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.10))
+                                        .frame(width: 130, height: 11)
+                                    RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.06))
+                                        .frame(width: 60, height: 9)
+                                }
+                                Spacer()
+                            }
+                            .padding(.horizontal, 10).padding(.vertical, 7)
+                            .shimmering()
                         }
-                    }
-                    if !catalog.isLoading && filteredApps.isEmpty {
-                        Text(query.isEmpty ? "No se encontraron aplicaciones." : "Sin resultados para «\(query)».")
-                            .font(.bodyMedium).foregroundStyle(Theme.textTertiary)
-                            .padding(20)
+                    } else {
+                        ForEach(filteredApps) { app in
+                            AppRow(app: app, isSelected: selectedAppID == app.id) {
+                                select(app: app)
+                            }
+                        }
+                        if !catalog.isLoading && filteredApps.isEmpty {
+                            Text(query.isEmpty ? "No se encontraron aplicaciones." : "Sin resultados para «\(query)».")
+                                .font(.bodyMedium).foregroundStyle(Theme.textTertiary)
+                                .padding(20)
+                        }
                     }
                 }
             }
@@ -177,14 +185,12 @@ struct UninstallerView: View {
                 Spacer(minLength: 0)
                 actionBar(app: app)
             } else {
-                Spacer()
-                VStack(spacing: 12) {
-                    Image(systemName: "shippingbox").font(.system(size: 50)).foregroundStyle(Theme.textTertiary)
-                    Text("Selecciona una app a la izquierda")
-                        .font(.titleMedium).foregroundStyle(Theme.textSecondary)
-                }
-                .frame(maxWidth: .infinity)
-                Spacer()
+                EmptyStateView(
+                    icon: "shippingbox.fill",
+                    tint: Theme.warning,
+                    title: "Elige una app",
+                    subtitle: "Selecciona una app de la lista para ver sus archivos asociados (Application Support, Caches, Containers, etc.) y desinstalarla limpiamente."
+                )
             }
         }
         .padding(20)
@@ -274,17 +280,11 @@ struct UninstallerView: View {
             Button(action: { showingConfirm = true }) {
                 HStack(spacing: 8) {
                     if isUninstalling { ProgressView().controlSize(.small).tint(.white) }
-                    Text(isUninstalling ? "Desinstalando…" : "Desinstalar").font(.titleMedium)
+                    else { Image(systemName: "trash.fill") }
+                    Text(isUninstalling ? "Desinstalando…" : "Desinstalar")
                 }
-                .padding(.horizontal, 22).padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: Theme.cornerMedium)
-                        .fill(LinearGradient(colors: [Theme.danger, Color(red: 1.0, green: 0.55, blue: 0.40)],
-                                             startPoint: .topLeading, endPoint: .bottomTrailing))
-                )
-                .foregroundStyle(.white)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PolishedDestructiveButtonStyle())
             .disabled(isUninstalling || app.isSystemApp)
             .opacity(app.isSystemApp ? 0.4 : 1)
         }

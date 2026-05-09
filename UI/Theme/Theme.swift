@@ -94,6 +94,13 @@ enum Theme {
 // MARK: - Tipografía
 
 extension Font {
+    /// HERO: número/valor protagonista (porcentajes grandes, contadores).
+    /// Bajado de 96 a 64 para no romper layouts en ventanas estrechas. Para
+    /// que escale bien hay que combinarlo con `.lineLimit(1).minimumScaleFactor(0.5)`.
+    static let heroNumber = Font.system(size: 64, weight: .black, design: .rounded)
+    /// HERO: título de pantalla principal (Dashboard greeting, etc.).
+    static let heroTitle = Font.system(size: 44, weight: .black, design: .rounded)
+
     static let displayLarge = Font.system(size: 42, weight: .bold, design: .rounded)
     static let displayMedium = Font.system(size: 32, weight: .bold, design: .rounded)
     static let titleLarge = Font.system(size: 22, weight: .semibold, design: .rounded)

@@ -15,7 +15,7 @@ struct CleanMyOwnApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .frame(minWidth: 1000, minHeight: 650)
+                .frame(minWidth: 1100, minHeight: 760)
                 .environmentObject(permissions)
                 .sheet(isPresented: $showingOnboarding) {
                     OnboardingView(monitor: permissions, onFinish: {

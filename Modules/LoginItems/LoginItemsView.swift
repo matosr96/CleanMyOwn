@@ -25,14 +25,16 @@ struct LoginItemsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            header
-            searchAndStats
-            list
+        ZStack {
+            AnimatedBackground(intensity: 0.28)
+            VStack(alignment: .leading, spacing: 18) {
+                header
+                searchAndStats
+                list
+            }
+            .padding(32)
         }
-        .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.background)
         .onAppear { if service.agents.isEmpty { service.reload() } }
         .alert("Error", isPresented: Binding(
             get: { actionError != nil },
@@ -64,14 +66,8 @@ struct LoginItemsView: View {
 
     private var searchAndStats: some View {
         HStack(spacing: 14) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundStyle(Theme.textTertiary)
-                TextField("Buscar por label o programa…", text: $query)
-                    .textFieldStyle(.plain).foregroundStyle(Theme.textPrimary).font(.bodyMedium)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 10)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
-            .frame(maxWidth: 360)
+            SearchField(text: $query, placeholder: "Buscar por label o programa…")
+                .frame(maxWidth: 380)
 
             Spacer()
             statBadge(label: "USUARIO", value: count(.userAgent), tint: Theme.success)
@@ -85,12 +81,23 @@ struct LoginItemsView: View {
     }
 
     private func statBadge(label: String, value: String, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.label).foregroundStyle(Theme.textTertiary)
-            Text(value).font(.titleMedium).foregroundStyle(tint)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.label).foregroundStyle(Theme.textTertiary).tracking(1.2)
+            Text(value)
+                .font(.system(size: 22, weight: .black, design: .rounded))
+                .foregroundStyle(tint)
+                .monospacedDigit()
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
+        .padding(.horizontal, 16).padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(tint.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(tint.opacity(0.22), lineWidth: 1)
+        )
+        .shadow(color: tint.opacity(0.15), radius: 8, y: 2)
     }
 
     private var list: some View {

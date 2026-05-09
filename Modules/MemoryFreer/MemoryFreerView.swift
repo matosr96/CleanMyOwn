@@ -13,24 +13,26 @@ struct MemoryFreerView: View {
     @State private var showResult = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                header
-                if let stats = service.stats {
-                    HStack(alignment: .top, spacing: 24) {
-                        ringPanel(stats: stats)
-                        breakdownPanel(stats: stats).frame(maxWidth: .infinity)
+        ZStack {
+            AnimatedBackground(intensity: 0.32)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    header
+                    if let stats = service.stats {
+                        HStack(alignment: .top, spacing: 24) {
+                            ringPanel(stats: stats)
+                            breakdownPanel(stats: stats).frame(maxWidth: .infinity)
+                        }
+                        actionPanel(stats: stats)
+                        if let err = service.lastError { errorBanner(err) }
+                    } else {
+                        ProgressView().frame(maxWidth: .infinity).padding(.top, 80)
                     }
-                    actionPanel(stats: stats)
-                    if let err = service.lastError { errorBanner(err) }
-                } else {
-                    ProgressView().frame(maxWidth: .infinity).padding(.top, 80)
                 }
+                .padding(32)
             }
-            .padding(32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.background)
         .onAppear { service.startAutoRefresh() }
         .onDisappear { service.stopAutoRefresh() }
         .alert("Memoria liberada", isPresented: $showResult) {
@@ -64,7 +66,9 @@ struct MemoryFreerView: View {
         .padding(28)
         .frame(width: 320)
         .background(RoundedRectangle(cornerRadius: Theme.cornerLarge).fill(Theme.cardGradient))
-        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge).stroke(Color.white.opacity(0.04), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge)
+            .stroke(Theme.success.opacity(0.22), lineWidth: 1))
+        .shadow(color: Theme.success.opacity(0.18), radius: 18, y: 6)
     }
 
     private func breakdownPanel(stats: MemoryStats) -> some View {
@@ -78,7 +82,8 @@ struct MemoryFreerView: View {
         }
         .padding(20)
         .background(RoundedRectangle(cornerRadius: Theme.cornerLarge).fill(Theme.cardGradient))
-        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge).stroke(Color.white.opacity(0.04), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge)
+            .stroke(Color(red: 0.30, green: 0.85, blue: 0.95).opacity(0.18), lineWidth: 1))
     }
 
     private func breakdownRow(label: String, bytes: UInt64, total: UInt64, tint: Color) -> some View {
@@ -120,13 +125,14 @@ struct MemoryFreerView: View {
                 Button(action: { Task { await runPurge() } }) {
                     HStack(spacing: 8) {
                         Image(systemName: "wand.and.stars")
-                        Text("Liberar memoria").font(.titleMedium)
+                        Text("Liberar memoria")
                     }
-                    .padding(.horizontal, 24).padding(.vertical, 13)
-                    .background(RoundedRectangle(cornerRadius: Theme.cornerMedium).fill(Theme.brandGradient))
-                    .foregroundStyle(.white)
-                    .shadow(color: Theme.shadowColor, radius: 10, y: 4)
-                }.buttonStyle(.plain)
+                }
+                .buttonStyle(PolishedPrimaryButtonStyle(
+                    fill: AnyShapeStyle(Theme.healthGradient),
+                    glow: Theme.success,
+                    horizontal: 24, vertical: 13
+                ))
             }
         }
         .padding(20)

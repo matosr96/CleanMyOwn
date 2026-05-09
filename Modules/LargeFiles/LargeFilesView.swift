@@ -20,15 +20,17 @@ struct LargeFilesView: View {
     enum Tab { case large, dupes }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            header
-            controls
-            tabs
-            content
+        ZStack {
+            AnimatedBackground(intensity: 0.28)
+            VStack(alignment: .leading, spacing: 18) {
+                header
+                controls
+                tabs
+                content
+            }
+            .padding(32)
         }
-        .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.background)
         .alert("¿Eliminar \(service.selectedBytes.formattedAsBytes) permanentemente?", isPresented: $showingConfirm) {
             Button("Cancelar", role: .cancel) {}
             Button("Eliminar permanentemente", role: .destructive) { Task { await runDelete() } }
@@ -88,22 +90,23 @@ struct LargeFilesView: View {
                     .foregroundStyle(Theme.textPrimary)
             } else {
                 Button(action: { service.startScan() }) {
-                    Text("Escanear").font(.titleMedium)
-                        .padding(.horizontal, 22).padding(.vertical, 11)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.brandGradient))
-                        .foregroundStyle(.white)
-                }.buttonStyle(.plain)
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                        Text("Escanear")
+                    }
+                }
+                .buttonStyle(PolishedPrimaryButtonStyle(horizontal: 22, vertical: 11))
             }
 
             if service.selectedBytes > 0 {
                 Button(action: { showingConfirm = true }) {
-                    Text("Eliminar \(service.selectedBytes.formattedAsBytes)").font(.titleMedium)
-                        .padding(.horizontal, 18).padding(.vertical, 11)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(LinearGradient(
-                            colors: [Theme.danger, Color(red: 1.0, green: 0.55, blue: 0.40)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing)))
-                        .foregroundStyle(.white)
-                }.buttonStyle(.plain).disabled(isDeleting)
+                    HStack(spacing: 8) {
+                        Image(systemName: "trash.fill")
+                        Text("Eliminar \(service.selectedBytes.formattedAsBytes)")
+                    }
+                }
+                .buttonStyle(PolishedDestructiveButtonStyle(horizontal: 18, vertical: 11))
+                .disabled(isDeleting)
             }
         }
     }
@@ -141,13 +144,21 @@ struct LargeFilesView: View {
     }
 
     private var largeFilesList: some View {
-        ScrollView {
-            LazyVStack(spacing: 4) {
-                ForEach(service.files) { file in fileRow(file) }
-                if service.files.isEmpty && !service.isScanning {
-                    Text("Pulsa «Escanear» para encontrar archivos grandes.")
-                        .font(.bodyMedium).foregroundStyle(Theme.textTertiary).padding(.top, 40)
-                        .frame(maxWidth: .infinity)
+        ZStack {
+            if service.files.isEmpty && !service.isScanning {
+                EmptyStateView(
+                    icon: "doc.zipper",
+                    tint: Color(red: 0.85, green: 0.50, blue: 1.0),
+                    title: "Encuentra archivos pesados",
+                    subtitle: "Configura el umbral de tamaño y pulsa «Escanear» para revisar tu carpeta de inicio. Los duplicados se detectan después con SHA256."
+                )
+                .padding(.vertical, 24)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 4) {
+                        ForEach(service.files) { file in fileRow(file) }
+                    }
+                    .padding(.vertical, 4)
                 }
             }
         }

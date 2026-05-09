@@ -19,32 +19,55 @@ struct JunkCleanerView: View {
     @State private var resultIsSuccess = true
     @EnvironmentObject private var permissions: PermissionsMonitor
 
+    // Hero moment al completar limpieza exitosa
+    @State private var showingHero: Bool = false
+    @State private var heroBytes: Int64 = 0
+    @State private var confettiTrigger: Int = 0
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                header
-                if !service.results.isEmpty {
-                    adminBanner
-                    if !permissions.hasFullDiskAccess {
-                        fdaBanner
+        ZStack {
+            AnimatedBackground(intensity: 0.30)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    header
+                    if !service.results.isEmpty {
+                        adminBanner
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        if !permissions.hasFullDiskAccess {
+                            fdaBanner
+                                .transition(.move(edge: .top).combined(with: .opacity))
+                        }
+                    }
+                    if service.isScanning && service.results.isEmpty {
+                        // Skeletons mientras arranca el primer scan
+                        scanningSkeleton.transition(.opacity)
+                    } else if service.results.isEmpty {
+                        emptyState.transition(.opacity)
+                    } else {
+                        summaryCard
+                        categoryList
+                    }
+                    if let err = service.lastError {
+                        errorBanner(err).transition(.opacity)
                     }
                 }
-                if service.results.isEmpty && !service.isScanning {
-                    emptyState
-                } else {
-                    summaryCard
-                    categoryList
-                }
-                if let err = service.lastError {
-                    errorBanner(err)
-                }
+                .padding(32)
+                .animation(Anim.smooth, value: service.results.count)
+                .animation(Anim.smooth, value: service.isScanning)
             }
-            .padding(32)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Theme.background)
+
+            // Overlay Hero — confetti + counter al completar limpieza exitosa
+            if showingHero {
+                heroOverlay
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    .zIndex(10)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.background)
         .onDisappear { admin.deactivate() }
-        .alert("¿Eliminar \(service.selectedBytes.formattedAsBytes) permanentemente?", isPresented: $showingConfirm) {
+        .alert("¿Eliminar \(service.selectedBytes.formattedAsBytes) permanentemente?",
+               isPresented: $showingConfirm) {
             Button("Cancelar", role: .cancel) { }
             Button("Eliminar permanentemente", role: .destructive) {
                 Task { await runClean() }
@@ -52,11 +75,86 @@ struct JunkCleanerView: View {
         } message: {
             Text("Los elementos se borrarán de forma permanente. Esta acción NO se puede deshacer.")
         }
-        .alert(resultIsSuccess ? "Limpieza completada" : "Limpieza con errores",
-               isPresented: $showingResult) {
+        // El alert se queda sólo para casos con error; el éxito muestra el Hero.
+        .alert("Limpieza con errores", isPresented: $showingResult) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(resultMessage)
+        }
+    }
+
+    // MARK: - Hero overlay (drop the mic)
+
+    private var heroOverlay: some View {
+        ZStack {
+            // Backdrop oscuro con blur
+            Rectangle()
+                .fill(.black.opacity(0.55))
+                .background(.ultraThinMaterial)
+                .ignoresSafeArea()
+                .onTapGesture { withAnimation(Anim.smooth) { showingHero = false } }
+
+            // Confetti detrás del card
+            ConfettiView(trigger: confettiTrigger)
+                .ignoresSafeArea()
+
+            // Card central
+            VStack(spacing: 22) {
+                ZStack {
+                    Circle().fill(Theme.success.opacity(0.18))
+                        .frame(width: 110, height: 110)
+                    Circle().fill(Theme.success.opacity(0.08))
+                        .frame(width: 150, height: 150)
+                        .blur(radius: 20)
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 50, weight: .bold))
+                        .foregroundStyle(Theme.success)
+                        .symbolEffect(.bounce, value: confettiTrigger)
+                }
+                VStack(spacing: 6) {
+                    Text("LIBERASTE")
+                        .font(.label).foregroundStyle(Theme.textTertiary)
+                    AnimatedByteCounter(bytes: heroBytes)
+                    Text("Tu Mac respira mejor 🎉")
+                        .font(.titleMedium).foregroundStyle(Theme.textSecondary)
+                }
+                Button(action: { withAnimation(Anim.smooth) { showingHero = false } }) {
+                    Text("Genial").frame(minWidth: 140)
+                }
+                .buttonStyle(PolishedPrimaryButtonStyle(
+                    fill: AnyShapeStyle(Theme.healthGradient),
+                    glow: Theme.success
+                ))
+            }
+            .padding(40)
+            .frame(width: 460)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Theme.cardGradient)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Theme.success.opacity(0.25), lineWidth: 1)
+            )
+            .shadow(color: Theme.success.opacity(0.25), radius: 30, y: 8)
+        }
+    }
+
+    // MARK: - Skeleton de escaneo
+
+    private var scanningSkeleton: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 14) {
+                ForEach(0..<3, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.white.opacity(0.06))
+                        .frame(height: 70)
+                        .shimmering()
+                }
+            }
+            ForEach(0..<5, id: \.self) { _ in
+                SkeletonCategoryRow()
+            }
         }
     }
 
@@ -163,47 +261,44 @@ struct JunkCleanerView: View {
         }
     }
 
+    @ViewBuilder
     private var actionButton: some View {
-        Group {
-            if service.isScanning {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small).tint(.white)
-                    Text("Escaneando…").font(.titleMedium)
-                }
-                .padding(.horizontal, 22).padding(.vertical, 14)
-                .background(RoundedRectangle(cornerRadius: Theme.cornerMedium).fill(Theme.card))
-                .foregroundStyle(Theme.textPrimary)
-            } else if service.results.isEmpty {
-                Button(action: { service.startScan() }) { actionLabel(text: "Escanear") }
-                    .buttonStyle(.plain)
-            } else if service.selectedBytes > 0 {
-                Button(action: { showingConfirm = true }) {
-                    actionLabel(text: isCleaning ? "Limpiando…" : "Limpiar \(service.selectedBytes.formattedAsBytes)", danger: true, busy: isCleaning)
-                }
-                .buttonStyle(.plain)
-                .disabled(isCleaning)
-            } else {
-                Button(action: { service.startScan() }) { actionLabel(text: "Re-escanear") }
-                    .buttonStyle(.plain)
+        if service.isScanning {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small).tint(.white)
+                Text("Escaneando…")
             }
+            .frame(minWidth: 140)
+            .padding(.horizontal, 22).padding(.vertical, 14)
+            .background(RoundedRectangle(cornerRadius: Theme.cornerMedium).fill(Theme.card))
+            .foregroundStyle(Theme.textPrimary)
+        } else if service.results.isEmpty {
+            Button(action: { service.startScan() }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                    Text("Escanear")
+                }
+            }
+            .buttonStyle(PolishedPrimaryButtonStyle())
+        } else if service.selectedBytes > 0 {
+            Button(action: { showingConfirm = true }) {
+                HStack(spacing: 8) {
+                    if isCleaning { ProgressView().controlSize(.small).tint(.white) }
+                    else { Image(systemName: "trash.fill") }
+                    Text(isCleaning ? "Limpiando…" : "Limpiar \(service.selectedBytes.formattedAsBytes)")
+                }
+            }
+            .buttonStyle(PolishedDestructiveButtonStyle())
+            .disabled(isCleaning)
+        } else {
+            Button(action: { service.startScan() }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Re-escanear")
+                }
+            }
+            .buttonStyle(PolishedPrimaryButtonStyle())
         }
-    }
-
-    private func actionLabel(text: String, danger: Bool = false, busy: Bool = false) -> some View {
-        HStack(spacing: 8) {
-            if busy { ProgressView().controlSize(.small).tint(.white) }
-            Text(text).font(.titleMedium)
-        }
-        .padding(.horizontal, 22).padding(.vertical, 14)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.cornerMedium, style: .continuous)
-                .fill(danger ?
-                      LinearGradient(colors: [Theme.danger, Color(red: 1.0, green: 0.55, blue: 0.40)],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing)
-                      : Theme.brandGradient)
-        )
-        .foregroundStyle(.white)
-        .shadow(color: Theme.shadowColor, radius: 10, y: 4)
     }
 
     // MARK: - Resumen
@@ -264,23 +359,13 @@ struct JunkCleanerView: View {
     // MARK: - Empty state
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
-            ZStack {
-                Circle().fill(Theme.success.opacity(0.15)).frame(width: 90, height: 90)
-                Image(systemName: "sparkles")
-                    .font(.system(size: 36, weight: .medium))
-                    .foregroundStyle(Theme.success)
-            }
-            Text("Listo para escanear")
-                .font(.titleLarge)
-                .foregroundStyle(Theme.textPrimary)
-            Text("Pulsa «Escanear» para inspeccionar cachés, logs y archivos temporales.\nNada se borra hasta que tú lo confirmes — y el borrado es permanente.")
-                .font(.bodyMedium)
-                .foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        EmptyStateView(
+            icon: "sparkles",
+            tint: Theme.success,
+            title: "Listo para escanear",
+            subtitle: "Pulsa «Escanear» para inspeccionar cachés, logs y archivos temporales.\nNada se borra hasta que tú lo confirmes — y el borrado es permanente."
+        )
+        .frame(minHeight: 460)
     }
 
     private func errorBanner(_ msg: String) -> some View {
@@ -302,7 +387,6 @@ struct JunkCleanerView: View {
             let ok = await admin.activate()
             if !ok {
                 isCleaning = false
-                resultIsSuccess = false
                 resultMessage = admin.lastError ?? "Necesitas activar el modo administrador para borrar snapshots."
                 showingResult = true
                 return
@@ -312,13 +396,18 @@ struct JunkCleanerView: View {
         let freed = await service.cleanSelected(adminSession: admin)
         isCleaning = false
         if let err = service.lastError {
-            resultIsSuccess = false
+            // Caso con errores: alert
             resultMessage = "Se liberaron \(freed.formattedAsBytes), pero hubo errores:\n\n\(err)"
+            showingResult = true
         } else {
-            resultIsSuccess = true
-            resultMessage = "Se liberaron \(freed.formattedAsBytes)."
+            // Caso éxito: Hero moment con confetti + counter
+            heroBytes = freed
+            withAnimation(Anim.smooth) { showingHero = true }
+            // Pequeño delay para que el counter empiece desde 0 y luego se dispara confetti
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                confettiTrigger += 1
+            }
         }
-        showingResult = true
     }
 }
 
@@ -393,12 +482,21 @@ private struct JunkCategoryRow: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: Theme.cornerMedium, style: .continuous).fill(Theme.card)
+            ZStack {
+                RoundedRectangle(cornerRadius: Theme.cornerMedium, style: .continuous).fill(Theme.card)
+                // Tint del color de la categoría (sutil)
+                LinearGradient(
+                    colors: [result.category.tint.opacity(0.10), result.category.tint.opacity(0.0)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerMedium, style: .continuous))
+            }
         )
         .overlay(
             RoundedRectangle(cornerRadius: Theme.cornerMedium, style: .continuous)
-                .stroke(Color.white.opacity(0.04), lineWidth: 1)
+                .stroke(result.category.tint.opacity(0.18), lineWidth: 1)
         )
+        .shadow(color: result.category.tint.opacity(0.08), radius: 12, y: 4)
     }
 }
 
@@ -416,7 +514,7 @@ private struct JunkItemRow: View {
                 .toggleStyle(CheckboxToggleStyle(partial: false, tint: tint))
 
             Image(systemName: iconName)
-                .foregroundStyle(Theme.textTertiary)
+                .foregroundStyle(tint.opacity(0.85))
                 .frame(width: 18)
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.displayName)
