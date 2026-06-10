@@ -826,6 +826,14 @@ final class JunkScanService: ObservableObject {
         if selection.contains(item.id) { selection.remove(item.id) } else { selection.insert(item.id) }
     }
 
+    func selectAll() {
+        selection = Set(results.flatMap(\.items).map(\.id))
+    }
+
+    func selectNone() {
+        selection = []
+    }
+
     func setSelection(category: JunkCategoryResult, selected: Bool) {
         let ids = category.items.map(\.id)
         if selected { selection.formUnion(ids) } else { selection.subtract(ids) }

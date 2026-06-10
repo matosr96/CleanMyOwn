@@ -54,13 +54,42 @@ struct LargeFilesView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 16) {
-            HeaderIconChip(icon: "doc.zipper", tint: Color(red: 0.85, green: 0.50, blue: 1.0))
-            VStack(alignment: .leading, spacing: 8) {
-                Text("ARCHIVOS GRANDES").font(.label).foregroundStyle(Theme.textTertiary)
-                Text("Encuentra qué ocupa espacio").font(.displayMedium).foregroundStyle(Theme.textPrimary)
-                Text("Escanea archivos pesados y detecta duplicados por contenido (SHA256).")
-                    .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+        HStack(alignment: .top) {
+            HStack(alignment: .center, spacing: 16) {
+                HeaderIconChip(icon: "doc.zipper", tint: Color(red: 0.85, green: 0.50, blue: 1.0))
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("ARCHIVOS GRANDES").font(.label).foregroundStyle(Theme.textTertiary)
+                    Text("Encuentra qué ocupa espacio").font(.displayMedium).foregroundStyle(Theme.textPrimary)
+                    Text("Escanea archivos pesados y detecta duplicados por contenido (SHA256).")
+                        .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+                }
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 10) {
+                if service.isScanning {
+                    HStack(spacing: 8) { ProgressView().controlSize(.small).tint(.white); Text("Escaneando…") }
+                        .padding(.horizontal, 18).padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
+                        .foregroundStyle(Theme.textPrimary)
+                } else if service.selectedBytes > 0 {
+                    Button(action: { showingConfirm = true }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: deleteToTrash ? "arrow.up.bin.fill" : "trash.fill")
+                            Text("Eliminar \(service.selectedBytes.formattedAsBytes)")
+                        }
+                    }
+                    .buttonStyle(PolishedDestructiveButtonStyle(horizontal: 18, vertical: 11))
+                    .disabled(isDeleting)
+                } else {
+                    Button(action: { service.startScan() }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                            Text("Escanear")
+                        }
+                    }
+                    .buttonStyle(PolishedPrimaryButtonStyle(horizontal: 22, vertical: 11))
+                }
+                TrashModeToggle()
             }
         }
     }
@@ -80,6 +109,7 @@ struct LargeFilesView: View {
             }
             .buttonStyle(.plain)
             .frame(maxWidth: 320, alignment: .leading)
+            .help("Cambiar carpeta a escanear")
 
             // Slider de tamaño
             HStack(spacing: 8) {
@@ -94,34 +124,17 @@ struct LargeFilesView: View {
 
             Spacer()
 
-            // Botón scan
-            if service.isScanning {
-                HStack(spacing: 8) { ProgressView().controlSize(.small).tint(.white); Text("Escaneando…") }
-                    .padding(.horizontal, 18).padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
-                    .foregroundStyle(Theme.textPrimary)
-            } else {
+            // Re-escaneo discreto cuando ya hay resultados
+            if !service.files.isEmpty && !service.isScanning {
                 Button(action: { service.startScan() }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                        Text("Escanear")
-                    }
+                    Image(systemName: "arrow.clockwise")
+                        .padding(9)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
+                        .foregroundStyle(Theme.textPrimary)
                 }
-                .buttonStyle(PolishedPrimaryButtonStyle(horizontal: 22, vertical: 11))
+                .buttonStyle(.plain)
+                .help("Volver a escanear")
             }
-
-            if service.selectedBytes > 0 {
-                Button(action: { showingConfirm = true }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: deleteToTrash ? "arrow.up.bin.fill" : "trash.fill")
-                        Text("Eliminar \(service.selectedBytes.formattedAsBytes)")
-                    }
-                }
-                .buttonStyle(PolishedDestructiveButtonStyle(horizontal: 18, vertical: 11))
-                .disabled(isDeleting)
-            }
-
-            TrashModeToggle()
         }
     }
 
@@ -181,30 +194,7 @@ struct LargeFilesView: View {
     }
 
     private func fileRow(_ file: LargeFile) -> some View {
-        HStack(spacing: 12) {
-            Toggle(isOn: Binding(
-                get: { service.selection.contains(file.id) },
-                set: { _ in service.toggle(file) }
-            )) { EmptyView() }
-                .toggleStyle(CheckboxToggleStyle(partial: false, tint: Theme.warning))
-            Image(systemName: file.isDirectory ? "shippingbox.fill" : "doc.fill")
-                .foregroundStyle(file.isDirectory ? Theme.warning : Theme.textTertiary)
-                .frame(width: 18)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(file.displayName).font(.bodyMedium).foregroundStyle(Theme.textPrimary).lineLimit(1)
-                Text(file.parentDir).font(.bodySmall).foregroundStyle(Theme.textTertiary).lineLimit(1).truncationMode(.middle)
-            }
-            Spacer()
-            if let date = file.modifiedDate {
-                Text(date, style: .date).font(.bodySmall).foregroundStyle(Theme.textTertiary)
-            }
-            Text(file.sizeBytes.formattedAsBytes)
-                .font(.bodyMedium).foregroundStyle(Theme.textPrimary).monospacedDigit().frame(width: 100, alignment: .trailing)
-            Button(action: { showInFinder(file.url) }) {
-                Image(systemName: "magnifyingglass.circle").foregroundStyle(Theme.textSecondary)
-            }.buttonStyle(.plain).help("Mostrar en Finder")
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        FileRow(file: file, service: service, onReveal: { showInFinder(file.url) })
     }
 
     private var duplicatesList: some View {
@@ -271,6 +261,48 @@ struct LargeFilesView: View {
             resultMessage = "\(verb)."
         }
         showingResult = true
+    }
+}
+
+private struct FileRow: View {
+    let file: LargeFile
+    @ObservedObject var service: LargeFilesService
+    let onReveal: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Toggle(isOn: Binding(
+                get: { service.selection.contains(file.id) },
+                set: { _ in service.toggle(file) }
+            )) { EmptyView() }
+                .toggleStyle(CheckboxToggleStyle(partial: false, tint: Theme.warning))
+            Image(systemName: FileTypeIcon.symbol(for: file.url, isDirectory: file.isDirectory))
+                .foregroundStyle(file.isDirectory ? Theme.warning : Theme.textSecondary)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(file.displayName).font(.bodyMedium).foregroundStyle(Theme.textPrimary).lineLimit(1)
+                Text(file.parentDir).font(.bodySmall).foregroundStyle(Theme.textTertiary).lineLimit(1).truncationMode(.middle)
+            }
+            Spacer()
+            if hovering {
+                Button(action: onReveal) {
+                    Image(systemName: "magnifyingglass.circle").foregroundStyle(Theme.textSecondary)
+                }
+                .buttonStyle(.plain).help("Mostrar en Finder")
+                .transition(.opacity)
+            }
+            if let date = file.modifiedDate {
+                Text(date, style: .date).font(.bodySmall).foregroundStyle(Theme.textTertiary)
+            }
+            Text(file.sizeBytes.formattedAsBytes)
+                .font(.bodyMedium).foregroundStyle(Theme.textPrimary).monospacedDigit().frame(width: 100, alignment: .trailing)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(hovering ? Color.white.opacity(0.03) : Color.clear))
+        .onHover { hovering = $0 }
+        .animation(Anim.hover, value: hovering)
     }
 }
 

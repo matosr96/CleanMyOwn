@@ -29,10 +29,17 @@ struct UninstallerView: View {
     @State private var resultMessage = ""
     @State private var resultIsSuccess = true
     @AppStorage(DeleteMode.storageKey) private var deleteToTrash = false
+    @State private var sortBySize = false
 
     private var filteredApps: [AppEntry] {
-        guard !query.isEmpty else { return catalog.apps }
-        return catalog.apps.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        var apps = catalog.apps
+        if !query.isEmpty {
+            apps = apps.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        }
+        if sortBySize {
+            apps.sort { $0.sizeBytes > $1.sizeBytes }
+        }
+        return apps
     }
 
     var body: some View {
@@ -150,7 +157,29 @@ struct UninstallerView: View {
 
     private var appList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SearchField(text: $query, placeholder: "Buscar app…")
+            HStack(spacing: 8) {
+                SearchField(text: $query, placeholder: "Buscar app…")
+                Button(action: { sortBySize.toggle() }) {
+                    Image(systemName: sortBySize ? "arrow.down.circle.fill" : "textformat.abc")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(sortBySize ? Theme.warning : Theme.textSecondary)
+                        .padding(8)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Theme.card))
+                }
+                .buttonStyle(.plain)
+                .help(sortBySize ? "Ordenado por tamaño — pulsar para orden alfabético" : "Ordenado A-Z — pulsar para ordenar por tamaño")
+            }
+
+            if !filteredApps.isEmpty {
+                HStack {
+                    Text("\(filteredApps.count) apps")
+                        .font(.bodySmall).foregroundStyle(Theme.textTertiary)
+                    Spacer()
+                    Text(filteredApps.reduce(Int64(0)) { $0 + $1.sizeBytes }.formattedAsBytes)
+                        .font(.bodySmall).foregroundStyle(Theme.textTertiary).monospacedDigit()
+                }
+                .padding(.horizontal, 4)
+            }
 
             ScrollView {
                 LazyVStack(spacing: 4) {
@@ -226,8 +255,17 @@ struct UninstallerView: View {
                 Text(app.name).font(.titleLarge).foregroundStyle(Theme.textPrimary)
                 if let v = app.version { Text("Versión \(v)").font(.bodySmall).foregroundStyle(Theme.textSecondary) }
                 if let bid = app.bundleID { Text(bid).font(.bodySmall).foregroundStyle(Theme.textTertiary) }
-                Text("\(app.sizeBytes.formattedAsBytes) · \(app.location.path)")
-                    .font(.bodySmall).foregroundStyle(Theme.textTertiary).lineLimit(1).truncationMode(.middle)
+                HStack(spacing: 6) {
+                    Text("\(app.sizeBytes.formattedAsBytes) · \(app.location.path)")
+                        .font(.bodySmall).foregroundStyle(Theme.textTertiary).lineLimit(1).truncationMode(.middle)
+                    Button(action: { NSWorkspace.shared.activateFileViewerSelecting([app.location]) }) {
+                        Image(systemName: "magnifyingglass.circle")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Mostrar en Finder")
+                }
             }
             Spacer()
         }
@@ -415,19 +453,18 @@ private struct AppRow: View {
                 } else {
                     RoundedRectangle(cornerRadius: 6).fill(Theme.card).frame(width: 28, height: 28)
                 }
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 4) {
-                        Text(app.name).font(.bodyMedium).foregroundStyle(Theme.textPrimary).lineLimit(1)
-                        if app.requiresAdmin {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 9))
-                                .foregroundStyle(Theme.warning)
-                                .help("Requiere autorización de administrador")
-                        }
+                HStack(spacing: 4) {
+                    Text(app.name).font(.bodyMedium).foregroundStyle(Theme.textPrimary).lineLimit(1)
+                    if app.requiresAdmin {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(Theme.warning)
+                            .help("Requiere autorización de administrador")
                     }
-                    Text(app.sizeBytes.formattedAsBytes).font(.bodySmall).foregroundStyle(Theme.textTertiary)
                 }
                 Spacer()
+                Text(app.sizeBytes.formattedAsBytes)
+                    .font(.bodySmall).foregroundStyle(Theme.textTertiary).monospacedDigit()
             }
             .padding(.horizontal, 10).padding(.vertical, 7)
             .background(

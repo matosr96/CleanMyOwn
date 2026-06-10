@@ -6,6 +6,7 @@
 //  deshabilitar para los del usuario.
 //
 
+import AppKit
 import SwiftUI
 
 struct LoginItemsView: View {
@@ -150,6 +151,8 @@ private struct AgentRow: View {
     let agent: LaunchAgent
     let onToggle: (Bool) -> Void
 
+    @State private var hovering = false
+
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
@@ -164,6 +167,14 @@ private struct AgentRow: View {
                 }
             }
             Spacer()
+            if hovering {
+                Button(action: { NSWorkspace.shared.activateFileViewerSelecting([agent.plistURL]) }) {
+                    Image(systemName: "magnifyingglass.circle").foregroundStyle(Theme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .help("Mostrar plist en Finder")
+                .transition(.opacity)
+            }
             HStack(spacing: 6) {
                 if agent.runAtLoad { badge("RUN AT LOAD", tint: Theme.accent) }
                 if agent.keepAlive { badge("KEEP ALIVE", tint: Theme.warning) }
@@ -183,7 +194,9 @@ private struct AgentRow: View {
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 9)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.02)))
+        .background(RoundedRectangle(cornerRadius: 8).fill(hovering ? Color.white.opacity(0.045) : Color.white.opacity(0.02)))
+        .onHover { hovering = $0 }
+        .animation(Anim.hover, value: hovering)
     }
 
     private var statusColor: Color {

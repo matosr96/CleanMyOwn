@@ -2,8 +2,9 @@
 //  MemoryFreerView.swift
 //  CleanMyOwn
 //
-//  Visualización en tiempo real del uso de memoria y botón para liberar
-//  memoria inactiva/comprimida vía `purge` (requiere autorización admin).
+//  Presión de memoria en tiempo real. Un solo hero: anillo fino con color
+//  semántico, barra apilada (Apps / Wired / Comprimida / Caché / Libre) con
+//  leyenda, y el botón de liberar integrado — simple pero completo.
 //
 
 import SwiftUI
@@ -13,6 +14,9 @@ struct MemoryFreerView: View {
     @EnvironmentObject private var admin: AdminSessionService
     @State private var showResult = false
 
+    private let cyan = Color(red: 0.30, green: 0.85, blue: 0.95)
+    private let purple = Color(red: 0.85, green: 0.50, blue: 1.0)
+
     var body: some View {
         ZStack {
             AnimatedBackground(intensity: 0.32)
@@ -20,11 +24,7 @@ struct MemoryFreerView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header
                     if let stats = service.stats {
-                        HStack(alignment: .top, spacing: 24) {
-                            ringPanel(stats: stats)
-                            breakdownPanel(stats: stats).frame(maxWidth: .infinity)
-                        }
-                        actionPanel(stats: stats)
+                        heroCard(stats: stats)
                         if let err = service.lastError { errorBanner(err) }
                     } else {
                         ProgressView().frame(maxWidth: .infinity).padding(.top, 80)
@@ -45,7 +45,7 @@ struct MemoryFreerView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 16) {
-            HeaderIconChip(icon: "memorychip.fill", tint: Color(red: 0.30, green: 0.85, blue: 0.95))
+            HeaderIconChip(icon: "memorychip.fill", tint: cyan)
             VStack(alignment: .leading, spacing: 8) {
                 Text("MEMORIA").font(.label).foregroundStyle(Theme.textTertiary)
                 Text("Liberar RAM").font(.displayMedium).foregroundStyle(Theme.textPrimary)
@@ -57,93 +57,134 @@ struct MemoryFreerView: View {
         }
     }
 
-    private func ringPanel(stats: MemoryStats) -> some View {
-        VStack(spacing: 14) {
+    // MARK: - Hero
+
+    private func heroCard(stats: MemoryStats) -> some View {
+        let tint = pressureTint(stats.pressureFraction)
+        return HStack(spacing: 30) {
             ProgressRing(
                 progress: stats.pressureFraction,
                 label: "\(Int(stats.pressureFraction * 100))%",
-                sublabel: "en uso",
-                gradient: Theme.healthGradient,
-                size: 200
+                sublabel: "presión",
+                gradient: LinearGradient(colors: [tint, tint.opacity(0.55)],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing),
+                lineWidth: 9,
+                size: 130,
+                glowColor: tint,
+                labelFont: .system(size: 26, weight: .bold, design: .rounded)
             )
-            Text("\(Int64(stats.pressureBytes).formattedAsBytes) de \(Int64(stats.totalBytes).formattedAsBytes)")
-                .font(.titleMedium).foregroundStyle(Theme.textPrimary)
-        }
-        .padding(28)
-        .frame(width: 320)
-        .background(RoundedRectangle(cornerRadius: Theme.cornerLarge).fill(Theme.cardGradient))
-        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge)
-            .stroke(Theme.success.opacity(0.22), lineWidth: 1))
-        .shadow(color: Theme.success.opacity(0.18), radius: 18, y: 6)
-    }
 
-    private func breakdownPanel(stats: MemoryStats) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Distribución").font(.titleMedium).foregroundStyle(Theme.textPrimary)
-            breakdownRow(label: "Apps", bytes: stats.appBytes, total: stats.totalBytes, tint: Theme.accent)
-            breakdownRow(label: "Wired", bytes: stats.wiredBytes, total: stats.totalBytes, tint: Color(red: 0.30, green: 0.85, blue: 0.95))
-            breakdownRow(label: "Comprimida", bytes: stats.compressedBytes, total: stats.totalBytes, tint: Theme.warning)
-            breakdownRow(label: "Caché de archivos", bytes: stats.cachedBytes, total: stats.totalBytes, tint: Color(red: 0.85, green: 0.50, blue: 1.0))
-            breakdownRow(label: "Libre", bytes: stats.freeBytes, total: stats.totalBytes, tint: Theme.success)
-        }
-        .padding(20)
-        .background(RoundedRectangle(cornerRadius: Theme.cornerLarge).fill(Theme.cardGradient))
-        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge)
-            .stroke(Color(red: 0.30, green: 0.85, blue: 0.95).opacity(0.18), lineWidth: 1))
-    }
-
-    private func breakdownRow(label: String, bytes: UInt64, total: UInt64, tint: Color) -> some View {
-        let frac = total > 0 ? Double(bytes) / Double(total) : 0
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label).font(.bodyMedium).foregroundStyle(Theme.textSecondary)
-                Spacer()
-                Text(Int64(bytes).formattedAsBytes).font(.bodyMedium).foregroundStyle(Theme.textPrimary).monospacedDigit()
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3).fill(Color.white.opacity(0.06))
-                    RoundedRectangle(cornerRadius: 3).fill(tint.opacity(0.85))
-                        .frame(width: geo.size.width * frac)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("MEMORIA FÍSICA")
+                    .font(.label).foregroundStyle(Theme.textTertiary).tracking(2)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(Int64(stats.usedBytes).formattedAsBytes)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(tint)
+                        .contentTransition(.numericText())
+                    Text("en uso de \(Int64(stats.totalBytes).formattedAsBytes)")
+                        .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
                 }
-            }
-            .frame(height: 6)
-        }
-    }
 
-    private func actionPanel(stats: MemoryStats) -> some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Memoria comprimida actual").font(.label).foregroundStyle(Theme.textTertiary)
-                Text(Int64(stats.compressedBytes).formattedAsBytes)
-                    .font(.titleLarge).foregroundStyle(Theme.warning)
-            }
-            Spacer()
-            if service.isPurging {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small).tint(.white)
-                    Text("Liberando…").font(.titleMedium)
-                }
-                .padding(.horizontal, 22).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: Theme.cornerMedium).fill(Theme.card))
-                .foregroundStyle(Theme.textPrimary)
-            } else {
-                Button(action: { Task { await runPurge() } }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "wand.and.stars")
-                        Text("Liberar memoria")
+                stackedBar(stats: stats)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 18) {
+                        legendDot(color: Theme.accent, label: "Apps", bytes: stats.appBytes)
+                        legendDot(color: cyan, label: "Wired", bytes: stats.wiredBytes)
+                        legendDot(color: Theme.warning, label: "Comprimida", bytes: stats.compressedBytes)
+                    }
+                    HStack(spacing: 18) {
+                        legendDot(color: purple, label: "Caché de archivos", bytes: stats.cachedBytes)
+                        legendDot(color: Color.white.opacity(0.25), label: "Libre", bytes: stats.freeBytes)
                     }
                 }
-                .buttonStyle(PolishedPrimaryButtonStyle(
-                    fill: AnyShapeStyle(Theme.healthGradient),
-                    glow: Theme.success,
-                    horizontal: 24, vertical: 13
-                ))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            purgeControl
+        }
+        .padding(24)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Theme.cardGradient)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(tint.opacity(0.20), lineWidth: 1)
+        )
+        .shadow(color: tint.opacity(0.14), radius: 16, y: 6)
+    }
+
+    @ViewBuilder
+    private var purgeControl: some View {
+        if service.isPurging {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small).tint(.white)
+                Text("Liberando…").font(.titleMedium)
+            }
+            .padding(.horizontal, 20).padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: Theme.cornerMedium).fill(Theme.card))
+            .foregroundStyle(Theme.textPrimary)
+        } else {
+            Button(action: { Task { await runPurge() } }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "wand.and.stars")
+                    Text("Liberar memoria")
+                }
+            }
+            .buttonStyle(PolishedPrimaryButtonStyle(
+                fill: AnyShapeStyle(Theme.healthGradient),
+                glow: Theme.success,
+                horizontal: 20, vertical: 12
+            ))
+        }
+    }
+
+    /// Una sola barra apilada en vez de cinco mini-gráficos: se lee de un
+    /// vistazo qué se lleva la RAM.
+    private func stackedBar(stats: MemoryStats) -> some View {
+        GeometryReader { geo in
+            let total = max(Double(stats.totalBytes), 1)
+            let w = geo.size.width
+            HStack(spacing: 2) {
+                segment(width: w * Double(stats.appBytes) / total, color: Theme.accent)
+                segment(width: w * Double(stats.wiredBytes) / total, color: cyan)
+                segment(width: w * Double(stats.compressedBytes) / total, color: Theme.warning)
+                segment(width: w * Double(stats.cachedBytes) / total, color: purple.opacity(0.75))
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.white.opacity(0.07))
+                    .frame(maxWidth: .infinity)
             }
         }
-        .padding(20)
-        .background(RoundedRectangle(cornerRadius: Theme.cornerLarge).fill(Theme.card))
-        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge).stroke(Color.white.opacity(0.04), lineWidth: 1))
+        .frame(height: 10)
+        .clipShape(Capsule())
+        .animation(.easeInOut(duration: 0.6), value: stats.pressureFraction)
+    }
+
+    private func segment(width: CGFloat, color: Color) -> some View {
+        RoundedRectangle(cornerRadius: 3)
+            .fill(color)
+            .frame(width: max(width, 3))
+    }
+
+    private func legendDot(color: Color, label: String, bytes: UInt64) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 7, height: 7)
+            Text(label).font(.bodySmall).foregroundStyle(Theme.textSecondary)
+            Text(Int64(bytes).formattedAsBytes)
+                .font(.bodySmall.weight(.semibold))
+                .foregroundStyle(Theme.textPrimary).monospacedDigit()
+        }
+        .lineLimit(1)
+        .fixedSize()
+    }
+
+    /// Verde en uso normal, naranja con presión, rojo cuando aprieta de verdad.
+    private func pressureTint(_ fraction: Double) -> Color {
+        if fraction >= 0.92 { return Theme.danger }
+        if fraction >= 0.75 { return Theme.warning }
+        return Theme.success
     }
 
     private func errorBanner(_ msg: String) -> some View {

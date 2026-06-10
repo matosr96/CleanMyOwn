@@ -3,10 +3,11 @@
 //  CleanMyOwn
 //
 //  UI del Limpiador: dispara el escaneo, muestra resultados por categoría
-//  con selección granular, y borra PERMANENTEMENTE lo seleccionado tras un
-//  alert de confirmación destructivo (no pasa por la Papelera).
+//  con selección granular, y borra lo seleccionado tras confirmación
+//  (permanente o a la Papelera según el toggle de modo).
 //
 
+import AppKit
 import SwiftUI
 
 struct JunkCleanerView: View {
@@ -341,6 +342,11 @@ struct JunkCleanerView: View {
                 Text(service.scanProgressLabel)
                     .font(.bodySmall)
                     .foregroundStyle(Theme.textTertiary)
+            } else {
+                HStack(spacing: 6) {
+                    quickSelectButton("Todo") { service.selectAll() }
+                    quickSelectButton("Nada") { service.selectNone() }
+                }
             }
         }
         .padding(20)
@@ -362,6 +368,16 @@ struct JunkCleanerView: View {
             Text(label).font(.label).foregroundStyle(Theme.textTertiary)
             Text(value).font(.titleLarge).foregroundStyle(tint)
         }
+    }
+
+    private func quickSelectButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(.bodySmall.weight(.semibold))
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 7).fill(Theme.card))
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Lista de categorías
@@ -553,6 +569,8 @@ private struct JunkItemRow: View {
     @ObservedObject var service: JunkScanService
     let tint: Color
 
+    @State private var hovering = false
+
     var body: some View {
         HStack(spacing: 14) {
             Toggle(isOn: Binding(
@@ -576,6 +594,18 @@ private struct JunkItemRow: View {
                 }
             }
             Spacer()
+
+            // Acción contextual al hover (patrón Finder)
+            if hovering, let url = item.url {
+                Button(action: { NSWorkspace.shared.activateFileViewerSelecting([url]) }) {
+                    Image(systemName: "magnifyingglass.circle")
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .help("Mostrar en Finder")
+                .transition(.opacity)
+            }
+
             Text(sizeLabel)
                 .font(.bodyMedium)
                 .foregroundStyle(Theme.textSecondary)
@@ -583,11 +613,14 @@ private struct JunkItemRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 9)
+        .background(hovering ? Color.white.opacity(0.03) : Color.clear)
+        .onHover { hovering = $0 }
+        .animation(Anim.hover, value: hovering)
     }
 
     private var iconName: String {
         switch item.kind {
-        case .file: return item.isDirectory ? "folder.fill" : "doc.fill"
+        case .file(let url): return FileTypeIcon.symbol(for: url, isDirectory: item.isDirectory)
         case .localSnapshot: return "clock.arrow.circlepath"
         case .simulator: return "iphone"
         }
