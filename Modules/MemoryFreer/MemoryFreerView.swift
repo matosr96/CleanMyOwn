@@ -21,10 +21,10 @@ struct MemoryFreerView: View {
         ZStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    header
+                    header.cascadeIn(0)
                     if let stats = service.stats {
-                        heroCard(stats: stats)
-                        infoNote
+                        heroCard(stats: stats).cascadeIn(1)
+                        infoNote.cascadeIn(2)
                         if let err = service.lastError { errorBanner(err) }
                     } else {
                         ProgressView().frame(maxWidth: .infinity).padding(.top, 80)

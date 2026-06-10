@@ -30,7 +30,7 @@ struct JunkCleanerView: View {
         ZStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    header
+                    header.cascadeIn(0)
                     if !service.results.isEmpty {
                         // Con el asistente activo el modo admin por contraseña
                         // es irrelevante: una sola fila verde, cero fricción.
@@ -49,10 +49,10 @@ struct JunkCleanerView: View {
                         // Skeletons mientras arranca el primer scan
                         scanningSkeleton.transition(.opacity)
                     } else if service.results.isEmpty {
-                        emptyState.transition(.opacity)
+                        emptyState.transition(.opacity).cascadeIn(1)
                     } else {
-                        summaryCard
-                        categoryList
+                        summaryCard.cascadeIn(1)
+                        categoryList.cascadeIn(2)
                     }
                     if let err = service.lastError {
                         errorBanner(err).transition(.opacity)

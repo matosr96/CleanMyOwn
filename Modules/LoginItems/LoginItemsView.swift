@@ -28,9 +28,9 @@ struct LoginItemsView: View {
     var body: some View {
         ZStack {
             VStack(alignment: .leading, spacing: 18) {
-                header
-                searchAndStats
-                list
+                header.cascadeIn(0)
+                searchAndStats.cascadeIn(1)
+                list.cascadeIn(2)
             }
             .padding(32)
         }

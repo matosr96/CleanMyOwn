@@ -68,19 +68,16 @@ struct SmartScanButton: View {
         .disabled(isScanning)
     }
 
-    @ViewBuilder
     private var ring: some View {
-        if isScanning {
-            TimelineView(.animation) { timeline in
-                let t = timeline.date.timeIntervalSinceReferenceDate
-                let angle = (t.truncatingRemainder(dividingBy: 1.8) / 1.8) * 360
-                Circle()
-                    .stroke(ringGradient, style: StrokeStyle(lineWidth: 11, lineCap: .round))
-                    .rotationEffect(.degrees(angle))
-            }
-        } else {
+        // Siempre vivo: rotación lentísima en reposo (una vuelta cada 16 s),
+        // rápida mientras escanea. El gradiente angular hace visible el giro.
+        TimelineView(.animation(minimumInterval: isScanning ? nil : 1.0 / 20.0)) { timeline in
+            let period: Double = isScanning ? 1.8 : 16.0
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            let angle = (t.truncatingRemainder(dividingBy: period) / period) * 360
             Circle()
-                .stroke(ringGradient, lineWidth: 11)
+                .stroke(ringGradient, style: StrokeStyle(lineWidth: 11, lineCap: .round))
+                .rotationEffect(.degrees(angle))
         }
     }
 }

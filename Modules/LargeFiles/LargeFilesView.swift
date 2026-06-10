@@ -24,10 +24,10 @@ struct LargeFilesView: View {
     var body: some View {
         ZStack {
             VStack(alignment: .leading, spacing: 18) {
-                header
-                controls
-                tabs
-                content
+                header.cascadeIn(0)
+                controls.cascadeIn(1)
+                tabs.cascadeIn(2)
+                content.cascadeIn(3)
             }
             .padding(32)
         }

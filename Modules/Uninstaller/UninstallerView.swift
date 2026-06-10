@@ -45,17 +45,18 @@ struct UninstallerView: View {
     var body: some View {
         ZStack {
             VStack(alignment: .leading, spacing: 0) {
-                header.padding(.horizontal, 32).padding(.top, 32).padding(.bottom, 12)
+                header.padding(.horizontal, 32).padding(.top, 32).padding(.bottom, 12).cascadeIn(0)
                 if !admin.helperEnabled {
-                    adminBanner.padding(.horizontal, 32).padding(.bottom, 8)
+                    adminBanner.padding(.horizontal, 32).padding(.bottom, 8).cascadeIn(1)
                 }
-                HelperStatusControls().padding(.horizontal, 32).padding(.bottom, 18)
+                HelperStatusControls().padding(.horizontal, 32).padding(.bottom, 18).cascadeIn(1)
 
                 HStack(spacing: 18) {
                     appList
                     detail
                 }
                 .padding(.horizontal, 32).padding(.bottom, 32)
+                .cascadeIn(2)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

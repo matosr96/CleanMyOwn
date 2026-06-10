@@ -20,13 +20,13 @@ struct DashboardView: View {
         ZStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    header
-                    smartScanCard
+                    header.cascadeIn(0)
+                    smartScanCard.cascadeIn(1)
                     if !permissions.hasFullDiskAccess {
-                        healthCard
+                        healthCard.cascadeIn(1)
                     }
-                    storageCard
-                    gaugesRow
+                    storageCard.cascadeIn(2)
+                    gaugesRow.cascadeIn(3)
                 }
                 .padding(32)
             }

@@ -88,20 +88,8 @@ struct Sidebar: View {
             footer
         }
         .frame(width: 224)
-        .background(
-            ZStack {
-                Theme.sidebar
-                LinearGradient(
-                    colors: [Color.white.opacity(0.03), .clear],
-                    startPoint: .top, endPoint: .bottom
-                )
-            }
-        )
-        .overlay(alignment: .trailing) {
-            Rectangle()
-                .fill(Color.white.opacity(0.06))
-                .frame(width: 1)
-        }
+        // Sin fondo propio ni divisor: el sidebar flota sobre el MISMO lienzo
+        // animado que el contenido — la app es una sola superficie.
     }
 
     // MARK: - Marca (compacta, sin hero)
