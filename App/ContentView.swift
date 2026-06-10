@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var selection: AppModule = .dashboard
     /// Dirección del último cambio de módulo (para la transición direccional).
     @State private var movedDown = true
+    @EnvironmentObject private var junk: JunkScanService
 
     /// Binding que captura la DIRECCIÓN del salto en el menú antes de animar.
     private var directedSelection: Binding<AppModule> {
@@ -28,10 +29,13 @@ struct ContentView: View {
 
     var body: some View {
         // UN solo lienzo: el fondo vivo corre bajo TODA la ventana — sidebar
-        // incluido — sin divisor. La navegación flota sobre la misma
-        // superficie que el contenido; nada se siente "componente aparte".
+        // incluido — sin divisor. Y se TIÑE del color del módulo activo
+        // (verde mientras escanea): la pantalla entera acompaña al contexto.
         ZStack {
-            AnimatedBackground(intensity: 0.35)
+            AnimatedBackground(
+                intensity: junk.isScanning ? 0.50 : 0.35,
+                tint: junk.isScanning ? Theme.success : selection.accentColor
+            )
 
             HStack(spacing: 0) {
                 Sidebar(selection: directedSelection)

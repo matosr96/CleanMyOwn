@@ -18,22 +18,111 @@ struct DashboardView: View {
 
     var body: some View {
         ZStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    header.cascadeIn(0)
-                    smartScanCard.cascadeIn(1)
-                    if !permissions.hasFullDiskAccess {
-                        healthCard.cascadeIn(1)
+            // Mientras escanea, el módulo entero se convierte en UN objeto:
+            // el orbe 3D con una línea de texto (concepto "Looking for junk").
+            if junk.isScanning {
+                scanHero
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        header.cascadeIn(0)
+                        smartScanCard.cascadeIn(1)
+                        if !permissions.hasFullDiskAccess {
+                            healthCard.cascadeIn(1)
+                        }
+                        storageCard.cascadeIn(2)
+                        gaugesRow.cascadeIn(3)
                     }
-                    storageCard.cascadeIn(2)
-                    gaugesRow.cascadeIn(3)
+                    .padding(32)
                 }
-                .padding(32)
+                .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(Anim.modulePush, value: junk.isScanning)
         .onAppear { systemInfo.startAutoRefresh() }
         .onDisappear { systemInfo.stopAutoRefresh() }
+    }
+
+    // MARK: - Orbe de escaneo (estado inmersivo)
+
+    private var scanHero: some View {
+        VStack(spacing: 40) {
+            Spacer()
+
+            ZStack {
+                // Halo ambiental
+                Circle()
+                    .fill(Theme.success)
+                    .frame(width: 320, height: 320)
+                    .blur(radius: 70)
+                    .opacity(0.32)
+
+                // Sombra de suelo — ancla el objeto al espacio
+                Ellipse()
+                    .fill(.black.opacity(0.35))
+                    .frame(width: 230, height: 50)
+                    .blur(radius: 18)
+                    .offset(y: 160)
+
+                // Disco 3D: gradiente radial descentrado (luz arriba-izquierda),
+                // brillo especular y el glifo orbitando — profundidad sin Metal.
+                TimelineView(.animation) { timeline in
+                    let t = timeline.date.timeIntervalSinceReferenceDate
+                    let breathe = 1 + 0.022 * sin(t * 1.7)
+                    let angle = (t.truncatingRemainder(dividingBy: 5) / 5) * 360
+
+                    ZStack {
+                        Circle()
+                            .fill(RadialGradient(
+                                colors: [
+                                    Theme.success.blended(with: .white, ratio: 0.38),
+                                    Theme.success,
+                                    Theme.success.blended(with: .black, ratio: 0.38)
+                                ],
+                                center: UnitPoint(x: 0.35, y: 0.28),
+                                startRadius: 10, endRadius: 175
+                            ))
+                            .frame(width: 270, height: 270)
+                            .overlay(Circle().stroke(.white.opacity(0.28), lineWidth: 1))
+
+                        // Especular
+                        Ellipse()
+                            .fill(LinearGradient(colors: [.white.opacity(0.50), .clear],
+                                                 startPoint: .top, endPoint: .bottom))
+                            .frame(width: 170, height: 84)
+                            .rotationEffect(.degrees(-18))
+                            .offset(x: -36, y: -84)
+                            .blur(radius: 5)
+
+                        SweepGlyph()
+                            .frame(width: 80, height: 80)
+                            .rotationEffect(.degrees(angle))
+                            .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
+                    }
+                    .scaleEffect(breathe)
+                }
+                .shadow(color: Theme.success.opacity(0.45), radius: 50, y: 16)
+            }
+
+            VStack(spacing: 10) {
+                Text("Buscando basura…")
+                    .font(.displayMedium)
+                    .foregroundStyle(Theme.textPrimary)
+                AnimatedByteCounter(
+                    bytes: junk.totalBytes,
+                    font: .system(size: 32, weight: .bold, design: .rounded)
+                )
+                Text(junk.scanProgressLabel.isEmpty ? "Revisando tu Mac de punta a punta" : junk.scanProgressLabel)
+                    .font(.bodyMedium)
+                    .foregroundStyle(Theme.textSecondary)
+                    .contentTransition(.opacity)
+            }
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Smart Scan (hero)
@@ -87,20 +176,7 @@ struct DashboardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 30).padding(.vertical, 24)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Theme.cardGradient)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(
-                            LinearGradient(
-                                colors: [Theme.accent.opacity(0.35), Color(red: 0.85, green: 0.50, blue: 1.0).opacity(0.18), .clear],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                )
-        )
+        .glassCard(cornerRadius: 24)
         .shadow(color: Theme.accent.opacity(0.16), radius: 24, y: 8)
     }
 
@@ -189,15 +265,7 @@ struct DashboardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(24)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Theme.cardGradient)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(0.05), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.30), radius: 18, y: 8)
+        .glassCard(cornerRadius: 20)
     }
 
     /// Barra de un solo vistazo: en uso · basura detectada (Smart Scan) · libre.
@@ -294,10 +362,7 @@ struct DashboardView: View {
         }
         .padding(.horizontal, 22).padding(.vertical, 18)
         .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Theme.cardGradient)
-        )
+        .glassCard(cornerRadius: 20)
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(tint.opacity(0.18), lineWidth: 1)

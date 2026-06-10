@@ -109,10 +109,7 @@ struct MemoryFreerView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(24)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Theme.cardGradient)
-        )
+        .glassCard(cornerRadius: 20)
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(tint.opacity(0.20), lineWidth: 1)

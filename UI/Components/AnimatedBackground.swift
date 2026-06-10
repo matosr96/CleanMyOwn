@@ -22,13 +22,27 @@ struct AnimatedBackground: View {
     ]
     /// Intensidad: 0.0 invisible, 1.0 muy vibrante.
     var intensity: Double = 0.85
+    /// Tinte ambiental: el color del módulo activo inunda el lienzo. La
+    /// transición entre tintes se interpola DENTRO del Canvas (un Canvas no
+    /// es animable desde fuera) durante ~0.9 s.
+    var tint: Color? = nil
+
+    @State private var fromTint: Color? = nil
+    @State private var toTint: Color? = nil
+    @State private var tintChangedAt: Date = .distantPast
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0/30.0)) { context in
             Canvas { ctx, size in
-                let t = context.date.timeIntervalSinceReferenceDate
+                let now = context.date
+                let t = now.timeIntervalSinceReferenceDate
                 ctx.addFilter(.blur(radius: 90))
                 ctx.opacity = intensity
+
+                // Progreso del cambio de tinte con easing suave
+                let raw = min(max(now.timeIntervalSince(tintChangedAt) / 0.9, 0), 1)
+                let progress = raw * raw * (3 - 2 * raw)   // smoothstep
+                let ambient = Color.lerp(fromTint, toTint, progress)
 
                 let blobs = layout(at: t, in: size)
                 for blob in blobs {
@@ -38,13 +52,25 @@ struct AnimatedBackground: View {
                         width: blob.radius * 2,
                         height: blob.radius * 2
                     )
-                    ctx.fill(Circle().path(in: rect), with: .color(blob.color))
+                    let color = ambient.map { blob.color.blended(with: $0, ratio: 0.55) } ?? blob.color
+                    ctx.fill(Circle().path(in: rect), with: .color(color))
                 }
             }
             .background(Theme.background)
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
+        .onAppear {
+            toTint = tint
+        }
+        .onChange(of: tint) { old, new in
+            // Congelar el tinte visible actual como origen de la interpolación
+            let raw = min(max(Date().timeIntervalSince(tintChangedAt) / 0.9, 0), 1)
+            let progress = raw * raw * (3 - 2 * raw)
+            fromTint = Color.lerp(fromTint, toTint, progress)
+            toTint = new
+            tintChangedAt = Date()
+        }
     }
 
     private func layout(at t: TimeInterval, in size: CGSize) -> [Blob] {
@@ -78,5 +104,29 @@ struct AnimatedBackground: View {
         let center: CGPoint
         let radius: CGFloat
         let color: Color
+    }
+}
+
+// MARK: - Mezcla de colores (Color.mix llega en macOS 15; esto corre en 14)
+
+extension Color {
+    /// Mezcla sRGB componente a componente.
+    func blended(with other: Color, ratio: CGFloat) -> Color {
+        guard let a = NSColor(self).usingColorSpace(.sRGB),
+              let b = NSColor(other).usingColorSpace(.sRGB) else { return self }
+        let inv = 1 - ratio
+        return Color(red: a.redComponent * inv + b.redComponent * ratio,
+                     green: a.greenComponent * inv + b.greenComponent * ratio,
+                     blue: a.blueComponent * inv + b.blueComponent * ratio)
+    }
+
+    /// Interpola entre dos tintes opcionales (nil = sin tinte).
+    static func lerp(_ from: Color?, _ to: Color?, _ progress: Double) -> Color? {
+        switch (from, to) {
+        case (nil, nil): return nil
+        case (nil, let t?): return progress >= 1 ? t : t.opacity(progress)
+        case (let f?, nil): return progress >= 1 ? nil : f.opacity(1 - progress)
+        case (let f?, let t?): return f.blended(with: t, ratio: progress)
+        }
     }
 }

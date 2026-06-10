@@ -26,11 +26,11 @@ enum Theme {
     /// Texto principal
     static let textPrimary = Color.white
     
-    /// Texto secundario
-    static let textSecondary = Color(white: 0.65)
-    
-    /// Texto terciario / labels
-    static let textTertiary = Color(white: 0.45)
+    /// Texto secundario (subido para legibilidad sobre superficies de cristal)
+    static let textSecondary = Color(white: 0.74)
+
+    /// Texto terciario / labels (ídem)
+    static let textTertiary = Color(white: 0.56)
     
     // MARK: - Acentos
     
@@ -89,6 +89,29 @@ enum Theme {
     static let cornerSmall: CGFloat = 8
     static let cornerMedium: CGFloat = 12
     static let cornerLarge: CGFloat = 18
+}
+
+// MARK: - Superficie de cristal
+
+extension View {
+    /// Tarjeta de vidrio esmerilado: el lienzo de color respira A TRAVÉS del
+    /// material en vez de quedar tapado por un fill opaco.
+    func glassCard(cornerRadius: CGFloat = 20) -> some View {
+        self
+            .background(.ultraThinMaterial,
+                        in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.white.opacity(0.20), .white.opacity(0.04)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(color: .black.opacity(0.25), radius: 18, y: 8)
+    }
 }
 
 // MARK: - Tipografía

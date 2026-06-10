@@ -65,15 +65,22 @@ struct Sidebar: View {
     @Namespace private var selectionNamespace
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            brandRow
+        // Rail de SOLO iconos (concepto glass): la navegación se reduce a una
+        // columna de objetos de cristal flotando sobre el lienzo. Los nombres
+        // viven en tooltips y en las cabeceras de cada módulo.
+        VStack(spacing: 0) {
+            BrandMark(size: 32)
+                .shadow(color: Theme.accent.opacity(0.4), radius: 10, y: 3)
+                .padding(.top, 20)
+                .padding(.bottom, 26)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(spacing: 10) {
                 ForEach(AppModule.allCases) { module in
-                    SidebarItem(
+                    RailItem(
                         module: module,
                         isSelected: selection == module,
-                        badge: badge(for: module),
+                        showsAlert: module == .junkCleaner && junk.totalBytes > 0 && !junk.isScanning,
+                        alertText: junk.totalBytes.formattedAsBytes,
                         namespace: selectionNamespace,
                         action: {
                             withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
@@ -83,87 +90,42 @@ struct Sidebar: View {
                     )
                 }
             }
-            .padding(.horizontal, 10)
 
             Spacer()
 
-            footer
-        }
-        .frame(width: 224)
-        // Sin fondo propio ni divisor: el sidebar flota sobre el MISMO lienzo
-        // animado que el contenido — la app es una sola superficie.
-    }
-
-    /// Dato vivo por módulo: el sidebar también informa, no sólo navega.
-    private func badge(for module: AppModule) -> String? {
-        switch module {
-        case .junkCleaner:
-            let bytes = junk.totalBytes
-            return bytes > 0 && !junk.isScanning ? bytes.formattedAsBytes : nil
-        default:
-            return nil
-        }
-    }
-
-    // MARK: - Marca (compacta, sin hero)
-
-    private var brandRow: some View {
-        HStack(spacing: 10) {
-            BrandMark(size: 30)
-                .shadow(color: Theme.accent.opacity(0.35), radius: 8, y: 2)
-            Text("CleanMyOwn")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.textPrimary)
-            Spacer()
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 22)
-        .padding(.bottom, 18)
-    }
-
-    // MARK: - Footer de estado, sin cajas
-
-    private var footer: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            statusRow(
-                ok: permissions.hasFullDiskAccess,
-                text: permissions.hasFullDiskAccess ? "Acceso total al disco" : "Acceso al disco parcial"
-            )
-            statusRow(
-                ok: admin.helperEnabled,
-                pending: admin.helperStatus == .requiresApproval,
-                text: admin.helperEnabled ? "Asistente activo"
-                    : (admin.helperStatus == .requiresApproval ? "Asistente pendiente" : "Asistente no instalado")
-            )
-            HStack {
-                Text("v1.0").font(.system(size: 10.5, design: .rounded))
-                Spacer()
-                Text("matosr96").font(.system(size: 10.5, design: .rounded))
+            // Estado: dos puntos con tooltip — mínima superficie, máxima señal
+            VStack(spacing: 10) {
+                statusDot(
+                    ok: permissions.hasFullDiskAccess,
+                    help: permissions.hasFullDiskAccess ? "Acceso total al disco" : "Acceso al disco parcial — concédelo en Resumen"
+                )
+                statusDot(
+                    ok: admin.helperEnabled,
+                    pending: admin.helperStatus == .requiresApproval,
+                    help: admin.helperEnabled ? "Asistente activo — sin contraseñas"
+                        : (admin.helperStatus == .requiresApproval ? "Asistente pendiente de aprobación" : "Asistente no instalado")
+                )
             }
-            .foregroundStyle(Theme.textTertiary.opacity(0.7))
-            .padding(.top, 6)
+            .padding(.bottom, 18)
         }
-        .padding(.horizontal, 18)
-        .padding(.bottom, 16)
+        .frame(width: 72)
+        // Sin fondo propio ni divisor: flota sobre el MISMO lienzo que el contenido.
     }
 
-    private func statusRow(ok: Bool, pending: Bool = false, text: String) -> some View {
-        HStack(spacing: 7) {
-            Circle()
-                .fill(ok ? Theme.success : (pending ? Theme.warning : Theme.textTertiary.opacity(0.5)))
-                .frame(width: 6, height: 6)
-                .shadow(color: ok ? Theme.success.opacity(0.6) : .clear, radius: 3)
-            Text(text)
-                .font(.system(size: 11, design: .rounded))
-                .foregroundStyle(Theme.textTertiary)
-        }
+    private func statusDot(ok: Bool, pending: Bool = false, help: String) -> some View {
+        Circle()
+            .fill(ok ? Theme.success : (pending ? Theme.warning : Theme.textTertiary.opacity(0.45)))
+            .frame(width: 7, height: 7)
+            .shadow(color: ok ? Theme.success.opacity(0.7) : (pending ? Theme.warning.opacity(0.6) : .clear), radius: 4)
+            .help(help)
     }
 }
 
-private struct SidebarItem: View {
+private struct RailItem: View {
     let module: AppModule
     let isSelected: Bool
-    let badge: String?
+    let showsAlert: Bool
+    let alertText: String
     let namespace: Namespace.ID
     let action: () -> Void
 
@@ -171,88 +133,60 @@ private struct SidebarItem: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                // Chip de color: gradiente lleno al seleccionar, tinte en reposo.
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(isSelected
-                              ? AnyShapeStyle(LinearGradient(
-                                    colors: [module.accentColor, module.accentColor.opacity(0.62)],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing))
-                              : AnyShapeStyle(module.accentColor.opacity(hovering ? 0.24 : 0.14)))
-                        .frame(width: isSelected ? 30 : 27, height: isSelected ? 30 : 27)
-                    Image(systemName: module.icon)
-                        .font(.system(size: isSelected ? 13 : 12, weight: .semibold))
-                        .foregroundStyle(isSelected ? .white : module.accentColor)
-                        .symbolEffect(.bounce, value: isSelected)
-                }
-                .shadow(color: module.accentColor.opacity(isSelected ? 0.45 : 0),
-                        radius: 7, y: 2)
-
-                // El seleccionado se EXPANDE y revela su descripción —
-                // jerarquía y movimiento sin ensuciar el resto.
-                VStack(alignment: .leading, spacing: 1.5) {
-                    Text(module.rawValue)
-                        .font(.system(size: 13, weight: isSelected ? .semibold : .medium, design: .rounded))
-                        .foregroundStyle(isSelected ? Theme.textPrimary : Theme.textSecondary)
-                    if isSelected {
-                        Text(module.subtitle)
-                            .font(.system(size: 10.5, design: .rounded))
-                            .foregroundStyle(Theme.textTertiary)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                }
-
-                Spacer(minLength: 4)
-
-                // Dato vivo (ej: GB de basura encontrados por el Smart Scan)
-                if let badge {
-                    Text(badge)
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(Theme.warning)
-                        .padding(.horizontal, 6).padding(.vertical, 3)
-                        .background(Capsule().fill(Theme.warning.opacity(0.14)))
-                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                }
-            }
-            .padding(.horizontal, 9)
-            .padding(.vertical, isSelected ? 9 : 6)
-            .background {
-                // La tarjeta de selección SE TRANSFORMA al viajar entre items
-                // (matchedGeometry anima posición Y tamaño).
+            ZStack {
+                // Cristal de selección: viaja y se transforma entre items
                 if isSelected {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .fill(Theme.cardGradient)
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .fill(.ultraThinMaterial)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                .fill(module.accentColor.opacity(0.22))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 13, style: .continuous)
                                 .stroke(
                                     LinearGradient(
-                                        colors: [module.accentColor.opacity(0.45),
-                                                 module.accentColor.opacity(0.10)],
+                                        colors: [.white.opacity(0.35), module.accentColor.opacity(0.25), .clear],
                                         startPoint: .topLeading, endPoint: .bottomTrailing
                                     ),
                                     lineWidth: 1
                                 )
                         )
-                        .shadow(color: module.accentColor.opacity(0.18), radius: 10, y: 3)
-                        .matchedGeometryEffect(id: "sidebar.selection", in: namespace)
-                } else if hovering {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .fill(Color.white.opacity(0.035))
+                        .shadow(color: module.accentColor.opacity(0.35), radius: 12, y: 4)
+                        .matchedGeometryEffect(id: "rail.selection", in: namespace)
+                        .frame(width: 46, height: 46)
+                }
+
+                Image(systemName: module.icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(isSelected ? .white : module.accentColor.opacity(hovering ? 1 : 0.75))
+                    .symbolEffect(.bounce, value: isSelected)
+                    .shadow(color: isSelected ? module.accentColor.opacity(0.8) : .clear, radius: 6)
+            }
+            .frame(width: 46, height: 46)
+            .overlay(alignment: .topTrailing) {
+                // Dato vivo: punto de alerta con el detalle en tooltip
+                if showsAlert {
+                    Circle()
+                        .fill(Theme.warning)
+                        .frame(width: 8, height: 8)
+                        .shadow(color: Theme.warning.opacity(0.8), radius: 4)
+                        .offset(x: 1, y: 1)
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
-            // Tilt 3D sutil al hover
+            // 3D: el icono se inclina hacia el cursor
             .rotation3DEffect(
-                .degrees(hovering && !isSelected ? 2.5 : 0),
-                axis: (x: 0.35, y: -1, z: 0),
-                perspective: 0.7
+                .degrees(hovering && !isSelected ? 7 : 0),
+                axis: (x: 0.4, y: -1, z: 0),
+                perspective: 0.65
             )
-            .scaleEffect(hovering && !isSelected ? 1.01 : 1.0)
+            .scaleEffect(hovering ? 1.10 : 1.0)
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .animation(Anim.hover, value: hovering)
+        .animation(Anim.snappy, value: hovering)
+        .help(showsAlert ? "\(module.rawValue) — \(alertText) de basura encontrada" : "\(module.rawValue) · \(module.subtitle)")
     }
 }
 
