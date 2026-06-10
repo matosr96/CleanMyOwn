@@ -44,7 +44,6 @@ struct UninstallerView: View {
 
     var body: some View {
         ZStack {
-            AnimatedBackground(intensity: 0.30)
             VStack(alignment: .leading, spacing: 0) {
                 header.padding(.horizontal, 32).padding(.top, 32).padding(.bottom, 12)
                 if !admin.helperEnabled {

@@ -19,7 +19,6 @@ struct MemoryFreerView: View {
 
     var body: some View {
         ZStack {
-            AnimatedBackground(intensity: 0.30)
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header

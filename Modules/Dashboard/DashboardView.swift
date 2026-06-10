@@ -18,7 +18,6 @@ struct DashboardView: View {
 
     var body: some View {
         ZStack {
-            AnimatedBackground(intensity: 0.45)
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header

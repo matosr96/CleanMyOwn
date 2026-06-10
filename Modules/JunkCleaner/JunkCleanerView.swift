@@ -28,7 +28,6 @@ struct JunkCleanerView: View {
 
     var body: some View {
         ZStack {
-            AnimatedBackground(intensity: 0.30)
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header
@@ -64,7 +63,6 @@ struct JunkCleanerView: View {
                 .animation(Anim.smooth, value: service.isScanning)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Theme.background)
 
             // Overlay Hero — confetti + counter al completar limpieza exitosa
             if showingHero {
