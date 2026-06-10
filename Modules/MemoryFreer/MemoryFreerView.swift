@@ -19,12 +19,13 @@ struct MemoryFreerView: View {
 
     var body: some View {
         ZStack {
-            AnimatedBackground(intensity: 0.32)
+            AnimatedBackground(intensity: 0.30)
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header
                     if let stats = service.stats {
                         heroCard(stats: stats)
+                        infoNote
                         if let err = service.lastError { errorBanner(err) }
                     } else {
                         ProgressView().frame(maxWidth: .infinity).padding(.top, 80)
@@ -43,17 +44,23 @@ struct MemoryFreerView: View {
         }
     }
 
+    /// Mismo esqueleto que el resto de módulos: chip + título a la izquierda,
+    /// ACCIÓN PRIMARIA arriba a la derecha.
     private var header: some View {
-        HStack(alignment: .center, spacing: 16) {
-            HeaderIconChip(icon: "memorychip.fill", tint: cyan)
-            VStack(alignment: .leading, spacing: 8) {
-                Text("MEMORIA").font(.label).foregroundStyle(Theme.textTertiary)
-                Text("Liberar RAM").font(.displayMedium).foregroundStyle(Theme.textPrimary)
-                Text(admin.helperEnabled
-                     ? "Ejecuta `purge` para liberar memoria inactiva y comprimida — sin contraseña, vía el asistente."
-                     : "Ejecuta `purge` para liberar memoria inactiva y comprimida. La contraseña se pide una sola vez por sesión.")
-                    .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+        HStack(alignment: .top) {
+            HStack(alignment: .center, spacing: 16) {
+                HeaderIconChip(icon: "memorychip.fill", tint: cyan)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("MEMORIA").font(.label).foregroundStyle(Theme.textTertiary)
+                    Text("Liberar RAM").font(.displayMedium).foregroundStyle(Theme.textPrimary)
+                    Text(admin.helperEnabled
+                         ? "Ejecuta `purge` para liberar memoria inactiva y comprimida — sin contraseña, vía el asistente."
+                         : "Ejecuta `purge` para liberar memoria inactiva y comprimida. La contraseña se pide una sola vez por sesión.")
+                        .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+                }
             }
+            Spacer()
+            purgeControl
         }
     }
 
@@ -101,8 +108,6 @@ struct MemoryFreerView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-
-            purgeControl
         }
         .padding(24)
         .background(
@@ -185,6 +190,21 @@ struct MemoryFreerView: View {
         if fraction >= 0.92 { return Theme.danger }
         if fraction >= 0.75 { return Theme.warning }
         return Theme.success
+    }
+
+    /// Expectativas honestas: purge es puntual, no rutina.
+    private var infoNote: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "info.circle")
+                .foregroundStyle(Theme.textTertiary)
+                .font(.system(size: 13))
+            Text("purge descarta páginas inactivas y caché de archivos. macOS ya gestiona la RAM por su cuenta — úsalo de forma puntual (antes de una app pesada o un benchmark), no como rutina: las apps recargarán su caché y eso también cuesta.")
+                .font(.bodySmall).foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: Theme.cornerMedium).fill(Color.white.opacity(0.025)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerMedium).stroke(Color.white.opacity(0.05), lineWidth: 1))
     }
 
     private func errorBanner(_ msg: String) -> some View {

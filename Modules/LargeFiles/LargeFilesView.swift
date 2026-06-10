@@ -23,7 +23,7 @@ struct LargeFilesView: View {
 
     var body: some View {
         ZStack {
-            AnimatedBackground(intensity: 0.28)
+            AnimatedBackground(intensity: 0.30)
             VStack(alignment: .leading, spacing: 18) {
                 header
                 controls

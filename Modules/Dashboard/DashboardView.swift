@@ -18,7 +18,7 @@ struct DashboardView: View {
 
     var body: some View {
         ZStack {
-            AnimatedBackground(intensity: 0.55)
+            AnimatedBackground(intensity: 0.45)
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header
@@ -29,7 +29,7 @@ struct DashboardView: View {
                     storageCard
                     gaugesRow
                 }
-                .padding(36)
+                .padding(32)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
