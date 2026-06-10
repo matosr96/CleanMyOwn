@@ -14,6 +14,7 @@
 //  alert destructivo antes de ejecutar.
 //
 
+import CleanMyOwnShared
 import Foundation
 import SwiftUI
 
@@ -740,9 +741,9 @@ final class JunkScanService: ObservableObject {
         }
 
         // 1b) Si quedaron paths sin borrar (típicamente Containers protegidos por
-        // TCC), reintentar con admin si está activo. Sólo en modo permanente:
-        // root no puede mover archivos a la Papelera del usuario.
-        if !stillExisting.isEmpty, !moveToTrash, let admin = adminSession, admin.isActive {
+        // TCC), reintentar con privilegios si hay vía (sesión AEWP o helper).
+        // Sólo en modo permanente: root no puede mover a la Papelera del usuario.
+        if !stillExisting.isEmpty, !moveToTrash, let admin = adminSession, admin.canEscalate {
             let paths = stillExisting.map { $0.url.path }
             _ = await admin.removeAsRoot(paths: paths)
             let hasFDA = AdminSessionService.hasFullDiskAccess()
@@ -771,12 +772,12 @@ final class JunkScanService: ObservableObject {
             }
         }
 
-        // 2) Time Machine snapshots (admin)
+        // 2) Time Machine snapshots (admin o helper)
         if !snapshotDates.isEmpty {
-            if let admin = adminSession, admin.isActive {
+            if let admin = adminSession, admin.canEscalate {
                 for item in selectedItems {
                     guard case .localSnapshot(let date) = item.kind else { continue }
-                    let res = await admin.runPrivileged("/usr/bin/tmutil", ["deletelocalsnapshots", date])
+                    let res = await admin.deleteTMSnapshot(date: date)
                     if res.success {
                         freed += item.sizeBytes
                         removedIds.insert(item.id)

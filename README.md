@@ -1,19 +1,19 @@
 # CleanMyOwn
 
-> **A native macOS cleaner and maintenance app.** SwiftUI, 100% local, no telemetry, no helper daemons. Inspired by CleanMyMac.
+> **A native macOS cleaner and maintenance app.** SwiftUI, 100% local, no telemetry. Inspired by CleanMyMac.
 
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue.svg)](https://www.apple.com/macos/)
 [![Swift 6](https://img.shields.io/badge/Swift-6-orange.svg)](https://swift.org)
 [![SwiftUI](https://img.shields.io/badge/SwiftUI-✓-blueviolet.svg)](https://developer.apple.com/swiftui/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#license)
 
-CleanMyOwn is a SwiftUI desktop app that scans, cleans, and maintains a macOS system end to end: junk caches, orphaned app data, large files and duplicates, uninstalling apps with their leftovers, login items, and live memory pressure. It talks directly to Mach (`host_statistics64`, `vm_statistics64`), TCC, and Authorization Services — no scripted wrappers, no Electron, no background helper.
+CleanMyOwn is a SwiftUI desktop app that scans, cleans, and maintains a macOS system end to end: junk caches, orphaned app data, large files and duplicates, uninstalling apps with their leftovers, login items, and live memory pressure. It talks directly to Mach (`host_statistics64`, `vm_statistics64`), TCC, and Authorization Services — no Electron, no telemetry. Privileged work runs through a persistent in-process auth session, or through an **optional, narrowly-scoped `SMAppService` helper** if you want zero password prompts.
 
 ---
 
 ## Why
 
-Most macOS cleaners fall into one of three traps: they ship a privileged helper that ages badly, they shell out to `osascript` and trigger a password prompt for every action, or they delete blindly and leave the Dock full of zombie icons. CleanMyOwn was built to skip all three.
+Most macOS cleaners fall into one of three traps: they ship an always-on privileged helper that can run anything as root, they shell out to `osascript` and trigger a password prompt for every action, or they delete blindly and leave the Dock full of zombie icons. CleanMyOwn skips all three: no prompt-per-action, process-aware deletes, and root access that is either a session-scoped `AuthorizationRef` or an opt-in helper that only understands four narrow verbs gated by an allowlist.
 
 The interesting problems in this domain aren't UI — they're **state**: which bundle IDs are actually still installed, which processes hold a `.app` open, which files are protected by TCC even from root, which auth session is still valid. Most of the engineering work here is about answering those questions correctly and cheaply.
 
@@ -26,9 +26,11 @@ The interesting problems in this domain aren't UI — they're **state**: which b
 - **Uninstaller that closes live processes first** via dual path/bundle-ID match, then `terminate()` with 2s grace, then `forceTerminate()`. Detects associated files across 12 standard locations.
 - **3-pass duplicate detection** (size bucket → 1MB quick hash → full SHA-256 streaming). Less than 5% of scanned files end up fully hashed in practice.
 - **Persistent admin session** via long-lived `AuthorizationRef` — one password prompt per app launch, not per action. Deleting 50 protected apps in a row = 1 prompt.
+- **Optional zero-prompt mode** via an `SMAppService.daemon` helper with exactly four verbs (`removeItems` within an allowlist, `deleteTimeMachineSnapshot` with validated format, `purgeMemory`, `version`) — never "run this command as root". Survives app restarts; uninstallable from the same banner.
+- **Reversible deletes on demand**: a persistent move-to-Trash toggle across Cleaner, Uninstaller, and Large Files (with honest exceptions — snapshots, simulators, Trash itself, and root-owned files stay permanent).
 - **Live Full Disk Access detection** via TCC.db readability probe + 2s polling + `NSApplication.didBecomeActiveNotification` — no app restart required after granting.
 - **Memory monitor that matches Activity Monitor** by calling `vm_statistics64` directly with the same `active + wired + compressed` formula.
-- **Native end to end:** SwiftUI + AppKit, no Electron, no background daemon, no telemetry.
+- **Native end to end:** SwiftUI + AppKit, no Electron, no telemetry.
 
 ---
 
@@ -38,7 +40,7 @@ The interesting problems in this domain aren't UI — they're **state**: which b
 |---|---|
 | UI | SwiftUI (`@StateObject`, `@EnvironmentObject`, custom modifiers) |
 | System integration | AppKit (`NSWorkspace`, `NSRunningApplication`), Mach syscalls (`host_statistics64`, `vm_statistics64`) |
-| Privileged operations | Authorization Services (`AuthorizationCreate` + `AuthorizationExecuteWithPrivileges`) |
+| Privileged operations | Authorization Services (`AuthorizationCreate` + `AuthorizationExecuteWithPrivileges`); optional `SMAppService.daemon` + `NSXPCConnection` helper |
 | Hashing | CryptoKit `SHA256` streaming, 4MB chunks |
 | Concurrency | `Task.detached` with explicit cancellation, `@Published` over Combine |
 | CLI bridges | `launchctl`, `tmutil`, `xcrun simctl`, `mdfind` — all via a deadlock-safe `ShellRunner` |
@@ -64,6 +66,11 @@ CleanMyOwn/
 │   │   ├── AdminSessionService.swift    # long-lived AuthorizationRef + AEWP
 │   │   └── PermissionsMonitor.swift     # FDA probe via TCC.db readability
 │   └── SystemInfo/SystemInfoService.swift  # disk/RAM/CPU/model polling
+├── Shared/                           # library shared by app AND helper
+│   ├── HelperProtocol.swift          # XPC contract (4 narrow verbs)
+│   ├── RootRemovalPolicy.swift       # rm-as-root allowlist (enforced both sides)
+│   └── ShellRunner.swift             # deadlock-safe Process wrapper
+├── Helper/main.swift                 # root daemon (SMAppService + NSXPCListener)
 ├── Modules/                          # one folder per feature view
 │   ├── Dashboard/  JunkCleaner/  Uninstaller/
 │   ├── LargeFiles/ LoginItems/   MemoryFreer/
@@ -71,8 +78,9 @@ CleanMyOwn/
 │   ├── Components/                   # ProgressRing, Confetti, Shimmer, …
 │   ├── Onboarding/OnboardingView.swift  # 3-step FDA wizard
 │   └── Theme/                        # palette, typography, animations
-├── Package.swift                     # SwiftPM executable
-└── run.sh                            # build → bundle → codesign → launch
+├── Tests/                            # XCTest suite over the pure logic
+├── Package.swift                     # SwiftPM: app + helper + shared lib + tests
+└── run.sh                            # build → bundle (app+helper+daemon plist) → codesign → launch
 ```
 
 ---
@@ -100,6 +108,10 @@ A handful of choices that aren't obvious from the file tree:
 **Process termination before uninstall.** Deleting an open `.app` leaves zombie Dock icons and locked handles. The uninstaller matches running processes two ways: by executable path inside the bundle (catches helpers whose bundle ID does not match the parent app) and by exact bundle ID plus prefix sub-bundles. It calls `terminate()` first, waits 2 seconds, then `forceTerminate()` on holdouts, then sleeps 400 ms for WindowServer to clear icons before the delete. See [AppCatalogService.swift](Core/Apps/AppCatalogService.swift).
 
 **Memory readings via direct Mach syscalls.** `MemoryService` calls `host_statistics64(HOST_VM_INFO64, …)` and applies the same `active + wired + compressed` formula Activity Monitor uses, so the numbers line up to the byte. The "Free memory" button runs `/usr/sbin/purge` through the privileged session, waits 800 ms for the kernel to reorganize, and reports the delta. See [MemoryService.swift](Core/Memory/MemoryService.swift).
+
+**A privileged helper that can't be repurposed.** The optional `SMAppService.daemon` helper deliberately exposes no generic "execute" verb — only `removeItems`, `deleteTimeMachineSnapshot`, `purgeMemory`, and `version`. The allowlist is re-evaluated **inside the helper** with the home directory derived from the connecting client's euid via `getpwuid` (never from a client-supplied path), connections are only accepted from the console user (owner of `/dev/console`, never root), and a code-signing requirement is pinned on the peer. Honest caveat: with ad-hoc signing the requirement can only anchor the bundle identifier, which another ad-hoc binary could claim — that's exactly why the narrow verbs + server-side allowlist carry the real security weight, and why the helper is opt-in. With a Developer ID the requirement gets real teeth. See [Helper/main.swift](Helper/main.swift) and [RootRemovalPolicy.swift](Shared/RootRemovalPolicy.swift).
+
+**Move-to-Trash with honest exceptions.** The persistent toggle (`@AppStorage`) switches `FileManager.removeItem` for `trashItem` across all three deletion surfaces. What it deliberately does *not* pretend to do: root cannot move files into a user's Trash, so privileged deletes stay permanent (and the trash mode never silently escalates to root); emptying the Trash is permanent by nature; `tmutil` snapshots and `simctl` deletes have no Trash concept. Each confirm dialog states which rule applies before anything is deleted.
 
 ---
 
@@ -131,18 +143,19 @@ CleanMyOwn needs two macOS permissions for full functionality:
 
 1. **Full Disk Access** — required to read/clean sandboxed Containers (TCC-protected even from root). The first-launch onboarding wizard walks the user to System Settings → Privacy & Security → Full Disk Access. Detection is live: no app restart required.
 2. **Admin mode** (on demand) — required to delete apps in `/Applications` owned by `root:wheel`, `tmutil deletelocalsnapshots`, and Containers with immutability flags. Activated from the in-app banner; one prompt per session.
+3. **Background helper** (optional) — "Instalar asistente" in the Cleaner/Uninstaller banners registers the `SMAppService` daemon. macOS will ask for approval under System Settings → General → Login Items & Extensions → *Allow in the Background*. Once approved, privileged operations run with no password at all and the grant survives app restarts. Uninstall it anytime from the same banner.
 
 ---
 
 ## Roadmap
 
-- [ ] **Privileged helper via `SMAppService.daemon`** — persist admin across sessions, no per-launch re-prompt.
+- [x] **Privileged helper via `SMAppService.daemon`** — persist admin across sessions, no per-launch re-prompt. Narrow XPC verbs + server-side allowlist.
+- [x] **Optional move-to-Trash mode** — persistent toggle between permanent delete (default) and reversible Trash.
 - [ ] **DaisyDisk-style sunburst** — navigable view of which folders consume disk.
 - [ ] **`kMDItemLastUsedDate` ranking** — surface large files the user hasn't opened in months.
 - [ ] **`lsof` check before delete** — refuse to delete files held by live processes.
 - [ ] **Parallel scans with `TaskGroup`** — run the 11 junk categories concurrently.
-- [ ] **Developer ID signing + notarization** — proper app icon and name in the TCC permission list.
-- [ ] **Optional move-to-Trash mode** — toggle between permanent delete (current default) and reversible Trash.
+- [ ] **Developer ID signing + notarization** — proper app icon in the TCC list and a code-signing requirement with real teeth for the helper.
 - [ ] **Menubar quick action** — one-click "Free memory" from the menubar.
 
 ---
@@ -159,6 +172,8 @@ sudo chflags -R noschg /path && sudo rm -rf /path
 ```
 
 **The app appears in the FDA list without a proper icon.** It's ad-hoc signed (no Developer ID), so macOS lists it by absolute path. Moving or rebuilding the app changes the path, invalidating FDA — re-add it, or sign with a Developer ID for a permanent identity.
+
+**The helper stays in "requires approval".** Open System Settings → General → Login Items & Extensions and enable CleanMyOwn under *Allow in the Background*, then hit the ↻ button in the banner. After rebuilding with a changed signature you may need to uninstall and reinstall the helper (the daemon binary inside the bundle changed).
 
 ---
 

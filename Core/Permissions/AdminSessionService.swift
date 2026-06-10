@@ -31,9 +31,11 @@
 //  que Foundation gestiona en paralelo.
 //
 
+import CleanMyOwnShared
 import AppKit
 import Foundation
 import Security
+import ServiceManagement
 
 @_silgen_name("AuthorizationExecuteWithPrivileges")
 private func _AuthorizationExecuteWithPrivileges(
@@ -48,10 +50,23 @@ private func _AuthorizationExecuteWithPrivileges(
 final class AdminSessionService: ObservableObject {
     @Published private(set) var isActive: Bool = false
     @Published private(set) var lastError: String?
+    /// Estado del helper privilegiado (SMAppService.daemon). `.enabled`
+    /// significa instalado Y aprobado en Ajustes → ítems en segundo plano.
+    @Published private(set) var helperStatus: SMAppService.Status = .notRegistered
 
     /// Ref vivo durante la sesión. Mientras no se libere, las llamadas
     /// privilegiadas reutilizan la autorización sin pedir password.
     private var authRef: AuthorizationRef?
+
+    /// Daemon registrable vía SMAppService (plist en Contents/Library/LaunchDaemons).
+    private let helperDaemon = SMAppService.daemon(plistName: HelperConstants.plistName)
+    private var helperConnection: NSXPCConnection?
+
+    var helperEnabled: Bool { helperStatus == .enabled }
+
+    init() {
+        refreshHelperStatus()
+    }
 
     struct PrivilegedResult {
         let exitCode: Int32
@@ -156,15 +171,21 @@ final class AdminSessionService: ObservableObject {
         }.value
     }
 
+    /// ¿Hay alguna vía de escalado disponible? (sesión AEWP activa o helper
+    /// instalado y aprobado). Las vistas y servicios usan esto para decidir
+    /// si hace falta pedir contraseña antes de operar.
+    var canEscalate: Bool { isActive || helperEnabled }
+
     /// Borra varios paths con `/bin/rm -rf` en una sola invocación privilegiada.
     /// Defensa en profundidad: sólo se aceptan paths dentro de las raíces que
-    /// la app realmente limpia; cualquier otro se rechaza y se reporta.
+    /// la app realmente limpia (`RootRemovalPolicy`); cualquier otro se rechaza
+    /// y se reporta. El helper, si está activo, re-valida en su lado.
     @discardableResult
     func removeAsRoot(paths: [String]) async -> PrivilegedResult {
         guard !paths.isEmpty else { return PrivilegedResult(exitCode: 0, output: "") }
 
-        let allowed = paths.filter { Self.isAllowedRootRemovalPath($0) }
-        let rejected = paths.filter { !Self.isAllowedRootRemovalPath($0) }
+        let allowed = paths.filter { RootRemovalPolicy.isAllowed($0) }
+        let rejected = paths.filter { !RootRemovalPolicy.isAllowed($0) }
 
         var notes: [String] = []
         if !rejected.isEmpty {
@@ -175,50 +196,125 @@ final class AdminSessionService: ObservableObject {
             return PrivilegedResult(exitCode: -1, output: notes.joined(separator: "\n"))
         }
 
-        let result = await runPrivileged("/bin/rm", ["-rf", "--"] + allowed)
+        let result: PrivilegedResult
+        if helperEnabled {
+            result = await callHelper { proxy, reply in
+                proxy.removeItems(paths: allowed, reply: reply)
+            }
+        } else {
+            result = await runPrivileged("/bin/rm", ["-rf", "--"] + allowed)
+        }
         let output = (notes + [result.output]).filter { !$0.isEmpty }.joined(separator: "\n")
         return PrivilegedResult(exitCode: result.exitCode, output: output)
     }
 
-    /// Raíces bajo las que se permite borrar como root. Dos niveles:
-    ///  - `containerRoots`: sólo descendientes ESTRICTOS (nunca la raíz misma).
-    ///  - `exactRoots`: cachés dev regenerables — la raíz misma también es borrable.
-    /// Coincide con lo que producen JunkScanService y AppCatalogService.
-    nonisolated static func isAllowedRootRemovalPath(
-        _ rawPath: String,
-        home: URL = FileManager.default.homeDirectoryForCurrentUser
-    ) -> Bool {
-        guard rawPath.hasPrefix("/") else { return false }
-        let url = URL(fileURLWithPath: rawPath)
-        // Sin componentes relativos: nada de "." ni ".." en el path.
-        let components = url.pathComponents
-        guard !components.contains("..") && !components.contains(".") else { return false }
-        let path = url.path
-        guard path != "/" else { return false }
-
-        let homePath = home.path
-
-        let containerRoots = [
-            homePath + "/Library",
-            homePath + "/.Trash",
-            homePath + "/Applications",
-            "/Applications"
-        ]
-        for root in containerRoots where path != root && path.hasPrefix(root + "/") {
-            return true
+    /// Borra un snapshot local de Time Machine (helper si está activo; si no,
+    /// `tmutil` vía la sesión AEWP).
+    @discardableResult
+    func deleteTMSnapshot(date: String) async -> PrivilegedResult {
+        if helperEnabled {
+            return await callHelper { proxy, reply in
+                proxy.deleteTimeMachineSnapshot(date: date, reply: reply)
+            }
         }
+        return await runPrivileged("/usr/bin/tmutil", ["deletelocalsnapshots", date])
+    }
 
-        let exactRoots = [
-            ".npm", ".yarn/cache",
-            ".cargo/registry/cache", ".cargo/registry/src", ".rustup/downloads",
-            ".gradle/caches", ".m2/repository", ".cocoapods/repos",
-            ".bundle/cache", ".composer/cache",
-            "go/pkg/mod/cache", ".pnpm-state"
-        ].map { homePath + "/" + $0 }
-        for root in exactRoots where path == root || path.hasPrefix(root + "/") {
-            return true
+    /// Ejecuta `/usr/sbin/purge` (helper si está activo; si no, sesión AEWP).
+    @discardableResult
+    func runPurge() async -> PrivilegedResult {
+        if helperEnabled {
+            return await callHelper { proxy, reply in
+                proxy.purgeMemory(reply: reply)
+            }
         }
-        return false
+        return await runPrivileged("/usr/sbin/purge", [])
+    }
+
+    // MARK: - Helper privilegiado (SMAppService.daemon)
+
+    func refreshHelperStatus() {
+        helperStatus = helperDaemon.status
+    }
+
+    /// Registra el daemon. La primera vez macOS lo deja en `.requiresApproval`
+    /// y hay que aprobarlo en Ajustes del Sistema → General → Ítems de inicio
+    /// y extensiones → Permitir en segundo plano.
+    func registerHelper() {
+        do {
+            try helperDaemon.register()
+        } catch {
+            // SMAppService lanza error mientras el usuario no apruebe; el
+            // estado real queda en `status`.
+            refreshHelperStatus()
+            if helperStatus == .requiresApproval {
+                SMAppService.openSystemSettingsLoginItems()
+            } else {
+                lastError = "No se pudo registrar el helper: \(error.localizedDescription)"
+            }
+            return
+        }
+        refreshHelperStatus()
+    }
+
+    func unregisterHelper() {
+        try? helperDaemon.unregister()
+        helperConnection?.invalidate()
+        helperConnection = nil
+        refreshHelperStatus()
+    }
+
+    func openHelperApprovalSettings() {
+        SMAppService.openSystemSettingsLoginItems()
+    }
+
+    /// Continuación que sólo puede reanudarse una vez: la reply del proxy y el
+    /// error handler de la conexión son excluyentes en XPC, pero ante un bug
+    /// del transporte preferimos perder una respuesta a crashear por doble resume.
+    private final class ResumeOnce<T>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<T, Never>?
+        init(_ c: CheckedContinuation<T, Never>) { continuation = c }
+        func resume(_ value: T) {
+            lock.lock()
+            let c = continuation
+            continuation = nil
+            lock.unlock()
+            c?.resume(returning: value)
+        }
+    }
+
+    private func helperXPCConnection() -> NSXPCConnection {
+        if let existing = helperConnection { return existing }
+        let connection = NSXPCConnection(machServiceName: HelperConstants.machServiceName,
+                                         options: .privileged)
+        connection.remoteObjectInterface = NSXPCInterface(with: HelperXPCProtocol.self)
+        connection.invalidationHandler = { [weak self] in
+            Task { @MainActor in self?.helperConnection = nil }
+        }
+        connection.resume()
+        helperConnection = connection
+        return connection
+    }
+
+    private func callHelper(
+        _ body: @escaping (HelperXPCProtocol, @escaping (Int32, String) -> Void) -> Void
+    ) async -> PrivilegedResult {
+        let connection = helperXPCConnection()
+        return await withCheckedContinuation { continuation in
+            let once = ResumeOnce(continuation)
+            let raw = connection.remoteObjectProxyWithErrorHandler { error in
+                once.resume(PrivilegedResult(exitCode: -1,
+                                             output: "XPC con el helper falló: \(error.localizedDescription)"))
+            }
+            guard let proxy = raw as? HelperXPCProtocol else {
+                once.resume(PrivilegedResult(exitCode: -1, output: "Proxy XPC inválido"))
+                return
+            }
+            body(proxy) { code, output in
+                once.resume(PrivilegedResult(exitCode: code, output: output))
+            }
+        }
     }
 
     // MARK: - Núcleo: AuthorizationExecuteWithPrivileges

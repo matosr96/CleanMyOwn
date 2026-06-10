@@ -179,7 +179,7 @@ final class AppCatalogService: ObservableObject {
         }
 
         if needsPriv {
-            guard let adminSession, adminSession.isActive else {
+            guard let adminSession, adminSession.canEscalate else {
                 return UninstallResult(freedBytes: 0, appRemoved: false,
                                        failedURLs: allURLs, errors: [],
                                        needsAdmin: true, processesKilled: killed)

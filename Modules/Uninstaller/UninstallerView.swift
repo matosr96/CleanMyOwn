@@ -40,7 +40,8 @@ struct UninstallerView: View {
             AnimatedBackground(intensity: 0.28)
             VStack(alignment: .leading, spacing: 0) {
                 header.padding(.horizontal, 32).padding(.top, 32).padding(.bottom, 12)
-                adminBanner.padding(.horizontal, 32).padding(.bottom, 18)
+                adminBanner.padding(.horizontal, 32).padding(.bottom, 8)
+                HelperStatusControls().padding(.horizontal, 32).padding(.bottom, 18)
 
                 HStack(spacing: 18) {
                     appList

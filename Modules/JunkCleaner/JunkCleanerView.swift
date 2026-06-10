@@ -34,6 +34,8 @@ struct JunkCleanerView: View {
                     if !service.results.isEmpty {
                         adminBanner
                             .transition(.move(edge: .top).combined(with: .opacity))
+                        HelperStatusControls()
+                            .transition(.move(edge: .top).combined(with: .opacity))
                         if !permissions.hasFullDiskAccess {
                             fdaBanner
                                 .transition(.move(edge: .top).combined(with: .opacity))
@@ -399,8 +401,9 @@ struct JunkCleanerView: View {
     private func runClean() async {
         isCleaning = true
 
-        // Si hay items que requieren admin y no está activo, activarlo (un único prompt)
-        if service.selectionRequiresAdmin && !admin.isActive {
+        // Si hay items que requieren admin y no hay vía de escalado (sesión
+        // AEWP o helper), activar la sesión (un único prompt)
+        if service.selectionRequiresAdmin && !admin.canEscalate {
             let ok = await admin.activate()
             if !ok {
                 isCleaning = false

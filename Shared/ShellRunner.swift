@@ -1,6 +1,6 @@
 //
 //  ShellRunner.swift
-//  CleanMyOwn
+//  CleanMyOwnShared
 //
 //  Helper único para ejecutar binarios del sistema sin shell intermedio:
 //  el ejecutable es siempre una ruta fija y los argumentos van como array,
@@ -15,15 +15,21 @@
 
 import Foundation
 
-struct ShellResult {
-    let exitCode: Int32
-    let stdout: String
-    let stderr: String
+public struct ShellResult {
+    public let exitCode: Int32
+    public let stdout: String
+    public let stderr: String
+
+    public init(exitCode: Int32, stdout: String, stderr: String) {
+        self.exitCode = exitCode
+        self.stdout = stdout
+        self.stderr = stderr
+    }
 }
 
-enum ShellRunner {
+public enum ShellRunner {
     /// Ejecuta `tool args...` y espera a que termine. Seguro para salidas grandes.
-    static func runSync(_ tool: String, _ args: [String]) -> ShellResult {
+    public static func runSync(_ tool: String, _ args: [String]) -> ShellResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: tool)
         process.arguments = args
@@ -62,7 +68,7 @@ enum ShellRunner {
     }
 
     /// Variante async: ejecuta fuera del hilo llamante.
-    static func run(_ tool: String, _ args: [String]) async -> ShellResult {
+    public static func run(_ tool: String, _ args: [String]) async -> ShellResult {
         await Task.detached(priority: .userInitiated) {
             runSync(tool, args)
         }.value

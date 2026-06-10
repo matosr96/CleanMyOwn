@@ -1,0 +1,47 @@
+//
+//  HelperProtocol.swift
+//  CleanMyOwnShared
+//
+//  Contrato XPC entre la app y el helper privilegiado (SMAppService.daemon).
+//
+//  Deliberadamente ESTRECHO: no existe un verbo "ejecuta este comando como
+//  root". Cada operación es concreta, validable y acotada — si un proceso
+//  hostil llegara a hablar con el helper, lo máximo que puede pedir es lo
+//  mismo que la app ofrece, dentro de la misma allowlist.
+//
+
+import Foundation
+
+public enum HelperConstants {
+    /// Nombre del mach service (coincide con MachServices en el plist del daemon).
+    public static let machServiceName = "com.matos.CleanMyOwn.helper"
+    /// Nombre del plist dentro de Contents/Library/LaunchDaemons.
+    public static let plistName = "com.matos.CleanMyOwn.helper.plist"
+    /// Versión del protocolo — la app la verifica al conectar.
+    public static let version = 1
+    /// Requirement de firma exigido al cliente. Con firma ad-hoc sólo se
+    /// puede anclar el identifier (no hay certificado) — ver README para los
+    /// límites de esta validación y por qué los verbos estrechos + allowlist
+    /// son la defensa principal.
+    public static let clientCodeSigningRequirement = #"identifier "com.matos.CleanMyOwn""#
+}
+
+/// Verbos expuestos por el helper. Las replies devuelven (exitCode, output).
+@objc public protocol HelperXPCProtocol {
+    func version(reply: @escaping (Int) -> Void)
+    /// Borra paths con `/bin/rm -rf --` tras validarlos contra
+    /// `RootRemovalPolicy` usando el HOME derivado del euid del CLIENTE
+    /// (nunca un home que el cliente declare).
+    func removeItems(paths: [String], reply: @escaping (Int32, String) -> Void)
+    /// `tmutil deletelocalsnapshots <date>` con formato validado.
+    func deleteTimeMachineSnapshot(date: String, reply: @escaping (Int32, String) -> Void)
+    /// `/usr/sbin/purge`.
+    func purgeMemory(reply: @escaping (Int32, String) -> Void)
+}
+
+public enum HelperValidation {
+    /// Identificador de snapshot de tmutil: `YYYY-MM-DD-HHMMSS`.
+    public static func isValidSnapshotDate(_ s: String) -> Bool {
+        s.range(of: "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}$", options: .regularExpression) != nil
+    }
+}

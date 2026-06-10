@@ -10,6 +10,7 @@
 
 import XCTest
 @testable import CleanMyOwn
+@testable import CleanMyOwnShared
 
 // MARK: - Heurísticas de bundle ID (JunkScanService)
 
@@ -122,13 +123,13 @@ final class ToolOutputParsingTests: XCTestCase {
     }
 }
 
-// MARK: - Allowlist de borrado como root (AdminSessionService)
+// MARK: - Allowlist de borrado como root (RootRemovalPolicy, compartida con el helper)
 
 final class RootRemovalAllowlistTests: XCTestCase {
     private let home = URL(fileURLWithPath: "/Users/test")
 
     private func allowed(_ path: String) -> Bool {
-        AdminSessionService.isAllowedRootRemovalPath(path, home: home)
+        RootRemovalPolicy.isAllowed(path, home: home)
     }
 
     func testAllowsDescendantsOfCleanableRoots() {
@@ -170,6 +171,19 @@ final class RootRemovalAllowlistTests: XCTestCase {
         XCTAssertFalse(allowed("/Users/test/.cargo"))
         XCTAssertFalse(allowed("/Users/test/go"))
         XCTAssertFalse(allowed("/Users/test/go/src/proyecto"))
+    }
+}
+
+// MARK: - Validaciones del helper privilegiado
+
+final class HelperValidationTests: XCTestCase {
+    func testSnapshotDateFormat() {
+        XCTAssertTrue(HelperValidation.isValidSnapshotDate("2026-05-08-123456"))
+        XCTAssertFalse(HelperValidation.isValidSnapshotDate(""))
+        XCTAssertFalse(HelperValidation.isValidSnapshotDate("2026-05-08"))
+        XCTAssertFalse(HelperValidation.isValidSnapshotDate("2026-05-08-123456; rm -rf /"))
+        XCTAssertFalse(HelperValidation.isValidSnapshotDate("../etc/passwd"))
+        XCTAssertFalse(HelperValidation.isValidSnapshotDate("2026-05-08-123456\n"))
     }
 }
 

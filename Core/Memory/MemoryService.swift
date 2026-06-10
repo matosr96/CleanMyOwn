@@ -63,7 +63,7 @@ final class MemoryService: ObservableObject {
 
         let before = Self.capture()
 
-        if !adminSession.isActive {
+        if !adminSession.canEscalate {
             let ok = await adminSession.activate()
             guard ok else {
                 lastError = adminSession.lastError ?? "Autorización cancelada o sin permisos."
@@ -71,7 +71,7 @@ final class MemoryService: ObservableObject {
                 return
             }
         }
-        let result = await adminSession.runPrivileged("/usr/sbin/purge", [])
+        let result = await adminSession.runPurge()
 
         // Esperar un poco a que el sistema reorganice
         try? await Task.sleep(nanoseconds: 800_000_000)
