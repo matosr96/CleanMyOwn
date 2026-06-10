@@ -10,7 +10,7 @@
 import SwiftUI
 
 struct JunkCleanerView: View {
-    @StateObject private var service = JunkScanService()
+    @EnvironmentObject private var service: JunkScanService
     @EnvironmentObject private var admin: AdminSessionService
     @State private var expanded: Set<String> = []
     @State private var showingConfirm = false
@@ -497,6 +497,26 @@ private struct JunkCategoryRow: View {
             .contentShape(Rectangle())
             .onTapGesture { onToggle() }
 
+            // Proporción de esta categoría sobre el total encontrado
+            if result.totalBytes > 0 && service.totalBytes > 0 {
+                GeometryReader { geo in
+                    let fraction = CGFloat(result.totalBytes) / CGFloat(service.totalBytes)
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.white.opacity(0.05))
+                        Capsule()
+                            .fill(LinearGradient(
+                                colors: [result.category.tint, result.category.tint.opacity(0.45)],
+                                startPoint: .leading, endPoint: .trailing
+                            ))
+                            .frame(width: max(geo.size.width * fraction, 6))
+                            .shadow(color: result.category.tint.opacity(0.5), radius: 4)
+                    }
+                }
+                .frame(height: 4)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+            }
+
             if expanded {
                 Divider().background(Color.white.opacity(0.06))
                 VStack(spacing: 0) {
@@ -612,5 +632,6 @@ struct CheckboxToggleStyle: ToggleStyle {
     JunkCleanerView()
         .environmentObject(PermissionsMonitor.shared)
         .environmentObject(AdminSessionService())
+        .environmentObject(JunkScanService())
         .frame(width: 900, height: 700)
 }

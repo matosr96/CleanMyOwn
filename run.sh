@@ -27,6 +27,9 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Library/LaunchDaemons"
 cp "$BIN_PATH" "$APP/Contents/MacOS/$BIN_NAME"
 cp "$HELPER_PATH" "$APP/Contents/MacOS/$HELPER_NAME"
+if [[ -f "Assets/AppIcon.icns" ]]; then
+    cp "Assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+fi
 
 # Plist del daemon privilegiado (registrable con SMAppService.daemon).
 # BundleProgram es relativo a la raíz del bundle.
@@ -60,6 +63,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleVersion</key><string>1.0</string>
     <key>CFBundleShortVersionString</key><string>1.0</string>
     <key>CFBundleExecutable</key><string>CleanMyOwn</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleSignature</key><string>????</string>

@@ -10,8 +10,11 @@
 import SwiftUI
 
 struct DashboardView: View {
+    /// Selección de módulo del ContentView — el Smart Scan navega a Limpieza.
+    @Binding var selection: AppModule
     @StateObject private var systemInfo = SystemInfoService()
     @EnvironmentObject private var permissions: PermissionsMonitor
+    @EnvironmentObject private var junk: JunkScanService
 
     var body: some View {
         ZStack {
@@ -19,7 +22,10 @@ struct DashboardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     header
-                    healthCard
+                    smartScanCard
+                    if !permissions.hasFullDiskAccess {
+                        healthCard
+                    }
                     heroDisk
                     secondaryRings
                     statsGrid
@@ -30,6 +36,74 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { systemInfo.startAutoRefresh() }
         .onDisappear { systemInfo.stopAutoRefresh() }
+    }
+
+    // MARK: - Smart Scan (hero)
+
+    private var smartScanCard: some View {
+        HStack(spacing: 34) {
+            SmartScanButton(isScanning: junk.isScanning) {
+                junk.startScan()
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("SMART SCAN")
+                    .font(.label).foregroundStyle(Theme.textTertiary).tracking(2)
+
+                if junk.isScanning {
+                    AnimatedByteCounter(bytes: junk.totalBytes)
+                    Text(junk.scanProgressLabel.isEmpty ? "Inspeccionando tu Mac…" : junk.scanProgressLabel)
+                        .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+                        .contentTransition(.opacity)
+                } else if !junk.results.isEmpty {
+                    AnimatedByteCounter(bytes: junk.totalBytes)
+                    Text("de basura en \(junk.results.filter { !$0.items.isEmpty }.count) categorías — \(junk.selectedBytes.formattedAsBytes) ya seleccionados de forma segura.")
+                        .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+                    HStack(spacing: 10) {
+                        Button(action: { withAnimation(Anim.crossfade) { selection = .junkCleaner } }) {
+                            HStack(spacing: 7) {
+                                Text("Revisar y limpiar")
+                                Image(systemName: "arrow.right")
+                            }
+                        }
+                        .buttonStyle(PolishedPrimaryButtonStyle(horizontal: 18, vertical: 10))
+
+                        Button(action: { junk.startScan() }) {
+                            Image(systemName: "arrow.clockwise")
+                                .padding(10)
+                                .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
+                                .foregroundStyle(Theme.textPrimary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Volver a escanear")
+                    }
+                    .padding(.top, 2)
+                } else {
+                    Text("Un escaneo, todo tu Mac")
+                        .font(.titleLarge).foregroundStyle(Theme.textPrimary)
+                    Text("Cachés, logs, papelera, builds de Xcode, cachés de desarrollo, datos huérfanos, snapshots y simuladores — de un solo golpe. Nada se borra sin tu confirmación.")
+                        .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 30).padding(.vertical, 24)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Theme.cardGradient)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Theme.accent.opacity(0.35), Color(red: 0.85, green: 0.50, blue: 1.0).opacity(0.18), .clear],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+        )
+        .shadow(color: Theme.accent.opacity(0.16), radius: 24, y: 8)
     }
 
     // MARK: - Header (greeting hero)
@@ -293,7 +367,8 @@ struct DashboardView: View {
 }
 
 #Preview {
-    DashboardView()
+    DashboardView(selection: .constant(.dashboard))
         .environmentObject(PermissionsMonitor.shared)
+        .environmentObject(JunkScanService())
         .frame(width: 1100, height: 800)
 }

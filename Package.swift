@@ -15,7 +15,7 @@ let package = Package(
             name: "CleanMyOwn",
             dependencies: ["CleanMyOwnShared"],
             path: ".",
-            exclude: ["README.md", "LICENSE", "CleanMyOwn.app", "run.sh", "Tests", "Shared", "Helper"],
+            exclude: ["README.md", "LICENSE", "CleanMyOwn.app", "run.sh", "Tests", "Shared", "Helper", "Assets", "tools"],
             sources: ["App", "Core", "Modules", "UI"]
         ),
         // Daemon root registrado vía SMAppService.daemon (ver Helper/main.swift).

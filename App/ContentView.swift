@@ -22,7 +22,7 @@ struct ContentView: View {
             // Contenido del módulo con cross-fade entre cambios
             Group {
                 switch selection {
-                case .dashboard:    DashboardView()
+                case .dashboard:    DashboardView(selection: $selection)
                 case .junkCleaner:  JunkCleanerView()
                 case .uninstaller:  UninstallerView()
                 case .largeFiles:   LargeFilesView()
