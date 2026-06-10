@@ -48,11 +48,14 @@ struct LoginItemsView: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("INICIO").font(.label).foregroundStyle(Theme.textTertiary)
-                Text("Launch Agents y Daemons").font(.displayMedium).foregroundStyle(Theme.textPrimary)
-                Text("Procesos que se cargan al iniciar sesión o al arrancar el Mac.")
-                    .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+            HStack(alignment: .center, spacing: 16) {
+                HeaderIconChip(icon: "power", tint: Theme.danger)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("INICIO").font(.label).foregroundStyle(Theme.textTertiary)
+                    Text("Launch Agents y Daemons").font(.displayMedium).foregroundStyle(Theme.textPrimary)
+                    Text("Procesos que se cargan al iniciar sesión o al arrancar el Mac.")
+                        .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+                }
             }
             Spacer()
             Button(action: { service.reload() }) {

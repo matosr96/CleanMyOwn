@@ -61,11 +61,26 @@ final class AdminSessionService: ObservableObject {
     /// Daemon registrable vía SMAppService (plist en Contents/Library/LaunchDaemons).
     private let helperDaemon = SMAppService.daemon(plistName: HelperConstants.plistName)
     private var helperConnection: NSXPCConnection?
+    private var observers: [NSObjectProtocol] = []
 
     var helperEnabled: Bool { helperStatus == .enabled }
 
     init() {
         refreshHelperStatus()
+        // El usuario aprueba el helper en Ajustes del Sistema y vuelve a la
+        // app: refrescar al recuperar el foreground para que el estado se
+        // actualice solo, sin pulsar nada (mismo patrón que PermissionsMonitor
+        // con FDA).
+        observers.append(NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.refreshHelperStatus() }
+        })
+    }
+
+    deinit {
+        for o in observers { NotificationCenter.default.removeObserver(o) }
     }
 
     struct PrivilegedResult {

@@ -58,6 +58,7 @@ enum AppModule: String, CaseIterable, Identifiable {
 struct Sidebar: View {
     @Binding var selection: AppModule
     @EnvironmentObject private var permissions: PermissionsMonitor
+    @EnvironmentObject private var admin: AdminSessionService
 
     @State private var logoRotation: Double = -10
     @State private var logoGlow: Double = 0.4
@@ -173,6 +174,14 @@ struct Sidebar: View {
                 text: permissions.hasFullDiskAccess ? "Acceso disco completo" : "Acceso disco parcial",
                 tint: permissions.hasFullDiskAccess ? Theme.success : Theme.warning
             )
+            statusPill(
+                icon: admin.helperEnabled ? "bolt.shield.fill"
+                    : (admin.helperStatus == .requiresApproval ? "hourglass" : "bolt.shield"),
+                text: admin.helperEnabled ? "Asistente activo"
+                    : (admin.helperStatus == .requiresApproval ? "Asistente pendiente" : "Asistente no instalado"),
+                tint: admin.helperEnabled ? Theme.success
+                    : (admin.helperStatus == .requiresApproval ? Theme.warning : Theme.textTertiary)
+            )
             HStack {
                 Text("v1.0").font(.bodySmall).foregroundStyle(Theme.textTertiary)
                 Spacer()
@@ -224,21 +233,23 @@ private struct SidebarItem: View {
                     .opacity(isSelected ? 1 : 0)
                     .shadow(color: module.accentColor.opacity(0.6), radius: 6)
 
-                // Icono dentro de pill colorida cuando está activo
+                // Chip SIEMPRE en color (estilo CleanMyMac): gradiente lleno
+                // al seleccionar, tinte suave en reposo.
                 ZStack {
-                    if isSelected {
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .fill(module.accentColor.opacity(0.18))
-                            .frame(width: 36, height: 36)
-                    }
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(isSelected
+                              ? AnyShapeStyle(LinearGradient(
+                                    colors: [module.accentColor, module.accentColor.opacity(0.62)],
+                                    startPoint: .topLeading, endPoint: .bottomTrailing))
+                              : AnyShapeStyle(module.accentColor.opacity(hovering ? 0.26 : 0.16)))
+                        .frame(width: 36, height: 36)
                     Image(systemName: module.icon)
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(isSelected ? module.accentColor
-                                         : (hovering ? Theme.textPrimary : Theme.textSecondary))
+                        .foregroundStyle(isSelected ? .white : module.accentColor)
                         .frame(width: 36, height: 36)
-                        .shadow(color: isSelected ? module.accentColor.opacity(0.6) : .clear,
-                                radius: isSelected ? 8 : 0)
                 }
+                .shadow(color: module.accentColor.opacity(isSelected ? 0.45 : 0),
+                        radius: 8, y: 2)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(module.rawValue)
@@ -273,6 +284,7 @@ private struct SidebarItem: View {
 #Preview {
     Sidebar(selection: .constant(.dashboard))
         .environmentObject(PermissionsMonitor.shared)
+        .environmentObject(AdminSessionService())
         .frame(height: 700)
         .background(Theme.background)
 }

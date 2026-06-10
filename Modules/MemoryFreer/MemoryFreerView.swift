@@ -44,11 +44,16 @@ struct MemoryFreerView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("MEMORIA").font(.label).foregroundStyle(Theme.textTertiary)
-            Text("Liberar RAM").font(.displayMedium).foregroundStyle(Theme.textPrimary)
-            Text("Ejecuta `purge` para liberar memoria inactiva y comprimida. Usa la sesión de administrador compartida: la contraseña se pide una sola vez.")
-                .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+        HStack(alignment: .center, spacing: 16) {
+            HeaderIconChip(icon: "memorychip.fill", tint: Color(red: 0.30, green: 0.85, blue: 0.95))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("MEMORIA").font(.label).foregroundStyle(Theme.textTertiary)
+                Text("Liberar RAM").font(.displayMedium).foregroundStyle(Theme.textPrimary)
+                Text(admin.helperEnabled
+                     ? "Ejecuta `purge` para liberar memoria inactiva y comprimida — sin contraseña, vía el asistente."
+                     : "Ejecuta `purge` para liberar memoria inactiva y comprimida. La contraseña se pide una sola vez por sesión.")
+                    .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+            }
         }
     }
 

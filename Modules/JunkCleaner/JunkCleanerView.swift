@@ -32,8 +32,12 @@ struct JunkCleanerView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header
                     if !service.results.isEmpty {
-                        adminBanner
-                            .transition(.move(edge: .top).combined(with: .opacity))
+                        // Con el asistente activo el modo admin por contraseña
+                        // es irrelevante: una sola fila verde, cero fricción.
+                        if !admin.helperEnabled {
+                            adminBanner
+                                .transition(.move(edge: .top).combined(with: .opacity))
+                        }
                         HelperStatusControls()
                             .transition(.move(edge: .top).combined(with: .opacity))
                         if !permissions.hasFullDiskAccess {
@@ -261,16 +265,19 @@ struct JunkCleanerView: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("LIMPIEZA")
-                    .font(.label)
-                    .foregroundStyle(Theme.textTertiary)
-                Text("Liberar espacio")
-                    .font(.displayMedium)
-                    .foregroundStyle(Theme.textPrimary)
-                Text("Cachés, logs y datos temporales que tu Mac ya no necesita.")
-                    .font(.bodyMedium)
-                    .foregroundStyle(Theme.textSecondary)
+            HStack(alignment: .center, spacing: 16) {
+                HeaderIconChip(icon: "trash.fill", tint: Theme.success)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("LIMPIEZA")
+                        .font(.label)
+                        .foregroundStyle(Theme.textTertiary)
+                    Text("Liberar espacio")
+                        .font(.displayMedium)
+                        .foregroundStyle(Theme.textPrimary)
+                    Text("Cachés, logs y datos temporales que tu Mac ya no necesita.")
+                        .font(.bodyMedium)
+                        .foregroundStyle(Theme.textSecondary)
+                }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 10) {

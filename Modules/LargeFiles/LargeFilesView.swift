@@ -54,11 +54,14 @@ struct LargeFilesView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("ARCHIVOS GRANDES").font(.label).foregroundStyle(Theme.textTertiary)
-            Text("Encuentra qué ocupa espacio").font(.displayMedium).foregroundStyle(Theme.textPrimary)
-            Text("Escanea archivos pesados y detecta duplicados por contenido (SHA256).")
-                .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+        HStack(alignment: .center, spacing: 16) {
+            HeaderIconChip(icon: "doc.zipper", tint: Color(red: 0.85, green: 0.50, blue: 1.0))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("ARCHIVOS GRANDES").font(.label).foregroundStyle(Theme.textTertiary)
+                Text("Encuentra qué ocupa espacio").font(.displayMedium).foregroundStyle(Theme.textPrimary)
+                Text("Escanea archivos pesados y detecta duplicados por contenido (SHA256).")
+                    .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+            }
         }
     }
 

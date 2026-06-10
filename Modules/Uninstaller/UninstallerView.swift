@@ -40,7 +40,9 @@ struct UninstallerView: View {
             AnimatedBackground(intensity: 0.28)
             VStack(alignment: .leading, spacing: 0) {
                 header.padding(.horizontal, 32).padding(.top, 32).padding(.bottom, 12)
-                adminBanner.padding(.horizontal, 32).padding(.bottom, 8)
+                if !admin.helperEnabled {
+                    adminBanner.padding(.horizontal, 32).padding(.bottom, 8)
+                }
                 HelperStatusControls().padding(.horizontal, 32).padding(.bottom, 18)
 
                 HStack(spacing: 18) {
@@ -124,13 +126,16 @@ struct UninstallerView: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("DESINSTALADOR")
-                    .font(.label).foregroundStyle(Theme.textTertiary)
-                Text("Aplicaciones instaladas")
-                    .font(.displayMedium).foregroundStyle(Theme.textPrimary)
-                Text("Desinstala una app y todos sus archivos asociados de forma limpia.")
-                    .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+            HStack(alignment: .center, spacing: 16) {
+                HeaderIconChip(icon: "shippingbox.fill", tint: Theme.warning)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("DESINSTALADOR")
+                        .font(.label).foregroundStyle(Theme.textTertiary)
+                    Text("Aplicaciones instaladas")
+                        .font(.displayMedium).foregroundStyle(Theme.textPrimary)
+                    Text("Desinstala una app y todos sus archivos asociados de forma limpia.")
+                        .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
+                }
             }
             Spacer()
             Button(action: { catalog.reload() }) {
