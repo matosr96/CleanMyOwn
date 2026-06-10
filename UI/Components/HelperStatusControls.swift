@@ -80,9 +80,9 @@ struct HelperStatusControls: View {
             return "Asistente en segundo plano activo — operaciones root sin contraseña, persistente entre sesiones."
         case .requiresApproval:
             return "Asistente pendiente de aprobación en Ajustes → Ítems de inicio → Permitir en segundo plano."
-        case .notFound:
-            return "Asistente no incluido en este bundle (reconstruye con ./run.sh)."
         default:
+            // macOS reporta .notFound (no .notRegistered) antes del primer
+            // registro, así que ambos estados muestran la invitación a instalar.
             return "Opcional: instala el asistente privilegiado y olvídate de la contraseña (SMAppService)."
         }
     }
