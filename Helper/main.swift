@@ -19,6 +19,21 @@
 
 import CleanMyOwnShared
 import Foundation
+import Security
+
+/// Team ID con el que está firmado ESTE helper (nil si la firma es ad-hoc).
+/// app y helper se firman juntos en run.sh, así que "exige mi mismo equipo"
+/// es exactamente la validación correcta para el cliente.
+func selfTeamIdentifier() -> String? {
+    var code: SecCode?
+    guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return nil }
+    var staticCode: SecStaticCode?
+    guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return nil }
+    var info: CFDictionary?
+    guard SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+          let dict = info as? [String: Any] else { return nil }
+    return dict[kSecCodeInfoTeamIdentifier as String] as? String
+}
 
 /// Objeto exportado a UNA conexión. Guarda el uid del cliente validado al
 /// aceptar la conexión; todos los verbos derivan el home de ese uid.
@@ -86,8 +101,11 @@ final class HelperDelegate: NSObject, NSXPCListenerDelegate {
         guard clientUID == consoleUID, clientUID != 0 else { return false }
 
         // Si el requirement es inválido o el cliente no lo cumple, el sistema
-        // invalida la conexión antes de entregar mensajes.
-        newConnection.setCodeSigningRequirement(HelperConstants.clientCodeSigningRequirement)
+        // invalida la conexión antes de entregar mensajes. Con firma de
+        // equipo: cadena Apple + identifier + mismo Team ID que este helper.
+        newConnection.setCodeSigningRequirement(
+            HelperConstants.clientRequirement(teamID: selfTeamIdentifier())
+        )
 
         newConnection.exportedInterface = NSXPCInterface(with: HelperXPCProtocol.self)
         newConnection.exportedObject = HelperService(clientUID: clientUID)

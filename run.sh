@@ -72,8 +72,52 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-echo "==> Firmando ad-hoc..."
-codesign --force --deep --sign - "$APP" >/dev/null
+# --- Firma ---------------------------------------------------------------
+# Identidad estable (Apple Development / Developer ID) ⇒ el grant de FDA y
+# la aprobación del asistente SOBREVIVEN a los rebuilds, y el helper exige
+# a sus clientes XPC el mismo Team ID. Ad-hoc queda como último recurso.
+# Override manual: CODESIGN_IDENTITY="..." ./run.sh
+IDENTITY="${CODESIGN_IDENTITY:-auto}"
+if [[ "$IDENTITY" == "auto" ]]; then
+    if security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
+        IDENTITY="Developer ID Application"
+    elif security find-identity -v -p codesigning | grep -q "Apple Development"; then
+        IDENTITY="Apple Development"
+    else
+        IDENTITY="-"
+    fi
+fi
+
+if [[ "$IDENTITY" == "-" ]]; then
+    echo "==> Firmando ad-hoc (sin identidad: FDA se invalida en cada rebuild)..."
+    codesign --force --sign - "$APP/Contents/MacOS/$HELPER_NAME" >/dev/null
+    codesign --force --sign - "$APP" >/dev/null
+else
+    echo "==> Firmando con: $IDENTITY"
+    # Primero el helper (binario anidado), luego el bundle (sella recursos).
+    codesign --force --options runtime --timestamp --sign "$IDENTITY" \
+        "$APP/Contents/MacOS/$HELPER_NAME" >/dev/null
+    codesign --force --options runtime --timestamp --sign "$IDENTITY" \
+        "$APP" >/dev/null
+fi
+codesign --verify --strict "$APP"
+
+# --- Notarización (sólo con Developer ID + Apple Developer Program) -------
+# Prepara una vez:  xcrun notarytool store-credentials CleanMyOwnNotary \
+#                     --apple-id <tu-apple-id> --team-id <team> --password <app-specific>
+# Y luego:          ./run.sh --notarize
+if [[ "${1:-}" == "--notarize" ]]; then
+    if [[ "$IDENTITY" != Developer\ ID* ]]; then
+        echo "ERROR: notarizar requiere 'Developer ID Application' (Apple Developer Program de pago)." >&2
+        echo "       Identidad actual: $IDENTITY" >&2
+        exit 1
+    fi
+    echo "==> Notarizando..."
+    ZIP="$(mktemp -d)/CleanMyOwn.zip"
+    ditto -c -k --keepParent "$APP" "$ZIP"
+    xcrun notarytool submit "$ZIP" --keychain-profile CleanMyOwnNotary --wait
+    xcrun stapler staple "$APP"
+fi
 
 echo "==> Cerrando instancia previa si existe..."
 pkill -x "$BIN_NAME" 2>/dev/null || true

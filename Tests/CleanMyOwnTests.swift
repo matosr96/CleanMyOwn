@@ -177,6 +177,20 @@ final class RootRemovalAllowlistTests: XCTestCase {
 // MARK: - Validaciones del helper privilegiado
 
 final class HelperValidationTests: XCTestCase {
+    func testClientRequirementWithTeamAnchorsAppleChainAndTeam() {
+        let req = HelperConstants.clientRequirement(teamID: "JQW5R9Y2L7")
+        XCTAssertTrue(req.contains("anchor apple generic"))
+        XCTAssertTrue(req.contains(#"identifier "com.matos.CleanMyOwn""#))
+        XCTAssertTrue(req.contains(#"certificate leaf[subject.OU] = "JQW5R9Y2L7""#))
+    }
+
+    func testClientRequirementWithoutTeamFallsBackToIdentifierOnly() {
+        XCTAssertEqual(HelperConstants.clientRequirement(teamID: nil),
+                       HelperConstants.clientCodeSigningRequirement)
+        XCTAssertEqual(HelperConstants.clientRequirement(teamID: ""),
+                       HelperConstants.clientCodeSigningRequirement)
+    }
+
     func testSnapshotDateFormat() {
         XCTAssertTrue(HelperValidation.isValidSnapshotDate("2026-05-08-123456"))
         XCTAssertFalse(HelperValidation.isValidSnapshotDate(""))

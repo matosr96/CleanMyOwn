@@ -19,11 +19,21 @@ public enum HelperConstants {
     public static let plistName = "com.matos.CleanMyOwn.helper.plist"
     /// Versión del protocolo — la app la verifica al conectar.
     public static let version = 1
-    /// Requirement de firma exigido al cliente. Con firma ad-hoc sólo se
-    /// puede anclar el identifier (no hay certificado) — ver README para los
+    /// Requirement de firma exigido al cliente cuando NO hay equipo (firma
+    /// ad-hoc): sólo se puede anclar el identifier. Ver README para los
     /// límites de esta validación y por qué los verbos estrechos + allowlist
-    /// son la defensa principal.
+    /// son la defensa principal en ese modo.
     public static let clientCodeSigningRequirement = #"identifier "com.matos.CleanMyOwn""#
+
+    /// Requirement del cliente según cómo esté firmado el helper. Con un
+    /// equipo real (Apple Development / Developer ID) exige cadena de Apple +
+    /// identifier + MISMO Team ID — un binario ad-hoc ya no puede suplantarlo.
+    public static func clientRequirement(teamID: String?) -> String {
+        guard let teamID, !teamID.isEmpty else {
+            return clientCodeSigningRequirement
+        }
+        return #"anchor apple generic and identifier "com.matos.CleanMyOwn" and certificate leaf[subject.OU] = ""# + teamID + #"""#
+    }
 }
 
 /// Verbos expuestos por el helper. Las replies devuelven (exitCode, output).

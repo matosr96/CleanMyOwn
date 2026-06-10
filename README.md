@@ -109,7 +109,7 @@ A handful of choices that aren't obvious from the file tree:
 
 **Memory readings via direct Mach syscalls.** `MemoryService` calls `host_statistics64(HOST_VM_INFO64, …)` and applies the same `active + wired + compressed` formula Activity Monitor uses, so the numbers line up to the byte. The "Free memory" button runs `/usr/sbin/purge` through the privileged session, waits 800 ms for the kernel to reorganize, and reports the delta. See [MemoryService.swift](Core/Memory/MemoryService.swift).
 
-**A privileged helper that can't be repurposed.** The optional `SMAppService.daemon` helper deliberately exposes no generic "execute" verb — only `removeItems`, `deleteTimeMachineSnapshot`, `purgeMemory`, and `version`. The allowlist is re-evaluated **inside the helper** with the home directory derived from the connecting client's euid via `getpwuid` (never from a client-supplied path), connections are only accepted from the console user (owner of `/dev/console`, never root), and a code-signing requirement is pinned on the peer. Honest caveat: with ad-hoc signing the requirement can only anchor the bundle identifier, which another ad-hoc binary could claim — that's exactly why the narrow verbs + server-side allowlist carry the real security weight, and why the helper is opt-in. With a Developer ID the requirement gets real teeth. See [Helper/main.swift](Helper/main.swift) and [RootRemovalPolicy.swift](Shared/RootRemovalPolicy.swift).
+**A privileged helper that can't be repurposed.** The optional `SMAppService.daemon` helper deliberately exposes no generic "execute" verb — only `removeItems`, `deleteTimeMachineSnapshot`, `purgeMemory`, and `version`. The allowlist is re-evaluated **inside the helper** with the home directory derived from the connecting client's euid via `getpwuid` (never from a client-supplied path), and connections are only accepted from the console user (owner of `/dev/console`, never root). The peer code-signing requirement adapts to how the helper itself was signed: with a team identity it demands *Apple certificate chain + bundle identifier + the helper's own Team ID* (introspected at runtime), so an ad-hoc binary claiming the identifier no longer qualifies; only in the ad-hoc dev fallback does it degrade to identifier-only — which is why the narrow verbs + server-side allowlist carry the real security weight regardless. See [Helper/main.swift](Helper/main.swift) and [RootRemovalPolicy.swift](Shared/RootRemovalPolicy.swift).
 
 **Move-to-Trash with honest exceptions.** The persistent toggle (`@AppStorage`) switches `FileManager.removeItem` for `trashItem` across all three deletion surfaces. What it deliberately does *not* pretend to do: root cannot move files into a user's Trash, so privileged deletes stay permanent (and the trash mode never silently escalates to root); emptying the Trash is permanent by nature; `tmutil` snapshots and `simctl` deletes have no Trash concept. Each confirm dialog states which rule applies before anything is deleted.
 
@@ -123,7 +123,11 @@ Requirements: macOS 14 (Sonoma) or later, and the Swift toolchain (Xcode CLT or 
 ./run.sh
 ```
 
-The script builds release with `swift build -c release`, bundles the binary as `CleanMyOwn.app` with a valid `Info.plist`, ad-hoc signs it via `codesign`, kills any prior instance, and launches with `open`.
+The script builds release with `swift build -c release`, bundles app + privileged helper + daemon plist as `CleanMyOwn.app`, signs, kills any prior instance, and launches with `open`.
+
+**Signing is auto-detected**: `Developer ID Application` if present, else `Apple Development`, else ad-hoc (override with `CODESIGN_IDENTITY=... ./run.sh`). A real identity matters beyond cosmetics: the signature stays stable across rebuilds, so the **Full Disk Access grant and the helper approval survive every rebuild**, and the helper's XPC requirement upgrades from identifier-only to *Apple chain + same Team ID* (it introspects its own signing team at runtime via `SecCodeCopySigningInformation`).
+
+`./run.sh --notarize` zips, submits via `notarytool` (keychain profile `CleanMyOwnNotary`), and staples — it requires a `Developer ID Application` certificate, which means the paid Apple Developer Program; with a free personal team the notary service returns 403.
 
 ```sh
 pkill -x CleanMyOwn      # stop
@@ -171,7 +175,7 @@ CleanMyOwn needs two macOS permissions for full functionality:
 sudo chflags -R noschg /path && sudo rm -rf /path
 ```
 
-**The app appears in the FDA list without a proper icon.** It's ad-hoc signed (no Developer ID), so macOS lists it by absolute path. Moving or rebuilding the app changes the path, invalidating FDA — re-add it, or sign with a Developer ID for a permanent identity.
+**FDA or helper approval lost after rebuilding.** Only happens with the ad-hoc fallback (no signing identity in the keychain): the ad-hoc signature changes on every build, so TCC and `SMAppService` treat each build as a new app. Fix: have an `Apple Development` (or `Developer ID`) certificate in the keychain — `run.sh` picks it up automatically and grants persist across rebuilds.
 
 **The helper stays in "requires approval".** Open System Settings → General → Login Items & Extensions and enable CleanMyOwn under *Allow in the Background*, then hit the ↻ button in the banner. After rebuilding with a changed signature you may need to uninstall and reinstall the helper (the daemon binary inside the bundle changed).
 
