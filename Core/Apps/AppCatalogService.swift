@@ -137,16 +137,21 @@ final class AppCatalogService: ObservableObject {
 
     /// Desinstala usando, opcionalmente, una `AdminSessionService` ya activa.
     /// Estrategia:
-    ///   1. Si la app está marcada `requiresAdmin` Y `adminSession?.isActive == true`,
+    ///   1. `moveToTrash == true` → todo va a la Papelera con
+    ///      `FileManager.trashItem` (recuperable). En este modo NO hay escalado
+    ///      a root: root no puede mover archivos a la Papelera del usuario, así
+    ///      que las apps protegidas fallarán con un hint para usar modo permanente.
+    ///   2. Si la app está marcada `requiresAdmin` Y `adminSession?.isActive == true`,
     ///      hacemos UN solo `rm -rf` privilegiado con todos los paths.
-    ///   2. Si no requiere admin, `FileManager.removeItem` directo.
-    ///   3. Si requiere admin pero la sesión NO está activa, devolvemos `needsAdmin = true`
+    ///   3. Si no requiere admin, `FileManager.removeItem` directo.
+    ///   4. Si requiere admin pero la sesión NO está activa, devolvemos `needsAdmin = true`
     ///      para que la UI active la sesión y reintente sin pedir password de nuevo.
     /// En todos los casos, verificamos con `fileExists` antes de removerlo de la lista.
     func uninstall(
         _ app: AppEntry,
         includingAssociated items: [AssociatedItem],
-        adminSession: AdminSessionService? = nil
+        adminSession: AdminSessionService? = nil,
+        moveToTrash: Bool = false
     ) async -> UninstallResult {
         let fm = FileManager.default
         let allURLs: [URL] = items.map(\.url) + [app.location]
@@ -158,6 +163,14 @@ final class AppCatalogService: ObservableObject {
         // Si no hacemos esto, el ícono del Dock queda zombie, hay locks abiertos
         // y procesos huérfanos sobreviven al borrado.
         let killed = await quitRunningInstances(of: app)
+
+        if moveToTrash {
+            for url in allURLs {
+                try? fm.trashItem(at: url, resultingItemURL: nil)
+            }
+            return finalize(app: app, urls: allURLs, bytesByURL: bytesByURL,
+                            cmdStderr: "", processesKilled: killed, trashMode: true)
+        }
 
         // ¿Necesitamos privilegios? La app lo dice, o cualquier item asociado vive
         // en un padre no escribible.
@@ -187,7 +200,8 @@ final class AppCatalogService: ObservableObject {
 
     /// Verifica con `fileExists` qué desapareció realmente y construye el resultado.
     private func finalize(app: AppEntry, urls: [URL], bytesByURL: [URL: Int64],
-                          cmdStderr: String, processesKilled: Int) -> UninstallResult {
+                          cmdStderr: String, processesKilled: Int,
+                          trashMode: Bool = false) -> UninstallResult {
         let fm = FileManager.default
         var freed: Int64 = 0
         var failed: [URL] = []
@@ -196,7 +210,9 @@ final class AppCatalogService: ObservableObject {
         for url in urls {
             if fm.fileExists(atPath: url.path) {
                 failed.append(url)
-                errors.append("\(url.lastPathComponent): permaneció en disco")
+                errors.append(trashMode
+                    ? "\(url.lastPathComponent): no se pudo mover a la Papelera — para apps protegidas usa el modo permanente"
+                    : "\(url.lastPathComponent): permaneció en disco")
             } else {
                 freed += bytesByURL[url] ?? 0
             }

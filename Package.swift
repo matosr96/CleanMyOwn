@@ -8,7 +8,7 @@ let package = Package(
         .executableTarget(
             name: "CleanMyOwn",
             path: ".",
-            exclude: ["README.md", "CleanMyOwn.app", "run.sh", "Tests"],
+            exclude: ["README.md", "LICENSE", "CleanMyOwn.app", "run.sh", "Tests"],
             sources: ["App", "Core", "Modules", "UI"]
         ),
         .testTarget(

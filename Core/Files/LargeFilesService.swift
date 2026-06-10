@@ -116,15 +116,21 @@ final class LargeFilesService: ObservableObject {
         }
     }
 
+    /// Elimina la selección. Con `moveToTrash` los archivos van a la Papelera
+    /// del sistema (recuperables) en vez de borrarse permanentemente.
     @discardableResult
-    func deleteSelected() async -> Int64 {
+    func deleteSelected(moveToTrash: Bool = false) async -> Int64 {
         let toRemove = files.filter { selection.contains($0.id) }
         var freed: Int64 = 0
         var removedIDs: Set<UUID> = []
         var failures: [String] = []
         for f in toRemove {
             do {
-                try FileManager.default.removeItem(at: f.url)
+                if moveToTrash {
+                    try FileManager.default.trashItem(at: f.url, resultingItemURL: nil)
+                } else {
+                    try FileManager.default.removeItem(at: f.url)
+                }
                 freed += f.sizeBytes
                 removedIDs.insert(f.id)
             } catch {

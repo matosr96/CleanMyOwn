@@ -28,6 +28,7 @@ struct UninstallerView: View {
     @State private var showingResult = false
     @State private var resultMessage = ""
     @State private var resultIsSuccess = true
+    @AppStorage(DeleteMode.storageKey) private var deleteToTrash = false
 
     private var filteredApps: [AppEntry] {
         guard !query.isEmpty else { return catalog.apps }
@@ -52,13 +53,19 @@ struct UninstallerView: View {
         .onAppear {
             if catalog.apps.isEmpty { catalog.reload() }
         }
-        .alert("¿Desinstalar \(selectedApp?.name ?? "") permanentemente?", isPresented: $showingConfirm) {
+        .alert(deleteToTrash
+                ? "¿Mover \(selectedApp?.name ?? "") a la Papelera?"
+                : "¿Desinstalar \(selectedApp?.name ?? "") permanentemente?",
+               isPresented: $showingConfirm) {
             Button("Cancelar", role: .cancel) {}
-            Button("Eliminar permanentemente", role: .destructive) {
+            Button(deleteToTrash ? "Mover a Papelera" : "Eliminar permanentemente",
+                   role: .destructive) {
                 Task { await runUninstall() }
             }
         } message: {
-            Text("La app y los archivos asociados seleccionados se borrarán de forma permanente del disco. Esta acción NO se puede deshacer.")
+            Text(deleteToTrash
+                 ? "La app y los archivos asociados seleccionados se moverán a la Papelera; podrás recuperarlos desde ahí. Las apps protegidas del sistema pueden requerir el modo permanente."
+                 : "La app y los archivos asociados seleccionados se borrarán de forma permanente del disco. Esta acción NO se puede deshacer.")
         }
         .alert(resultIsSuccess ? "Desinstalación completada" : "No se pudo eliminar todo",
                isPresented: $showingResult) {
@@ -288,10 +295,11 @@ struct UninstallerView: View {
                     .font(.titleLarge).foregroundStyle(Theme.success)
             }
             Spacer()
+            TrashModeToggle()
             Button(action: { showingConfirm = true }) {
                 HStack(spacing: 8) {
                     if isUninstalling { ProgressView().controlSize(.small).tint(.white) }
-                    else { Image(systemName: "trash.fill") }
+                    else { Image(systemName: deleteToTrash ? "arrow.up.bin.fill" : "trash.fill") }
                     Text(isUninstalling ? "Desinstalando…" : "Desinstalar")
                 }
             }
@@ -330,14 +338,16 @@ struct UninstallerView: View {
         isUninstalling = true
         let toRemove = associated.filter { assocSelection.contains($0.id) }
 
-        var result = await catalog.uninstall(app, includingAssociated: toRemove, adminSession: admin)
+        var result = await catalog.uninstall(app, includingAssociated: toRemove,
+                                             adminSession: admin, moveToTrash: deleteToTrash)
 
         // Si se requiere admin y el modo no estaba activo, lo activamos AHORA
         // (un único prompt) y reintentamos automáticamente.
         if result.needsAdmin {
             let activated = await admin.activate()
             if activated {
-                result = await catalog.uninstall(app, includingAssociated: toRemove, adminSession: admin)
+                result = await catalog.uninstall(app, includingAssociated: toRemove,
+                                                 adminSession: admin, moveToTrash: deleteToTrash)
             } else {
                 isUninstalling = false
                 showResult(success: false,
@@ -351,11 +361,14 @@ struct UninstallerView: View {
         let killedNote = result.processesKilled > 0
             ? " Cerré \(result.processesKilled) proceso\(result.processesKilled == 1 ? "" : "s") activo\(result.processesKilled == 1 ? "" : "s") antes de borrar."
             : ""
+        let freedVerb = deleteToTrash
+            ? "Se enviaron \(result.freedBytes.formattedAsBytes) a la Papelera."
+            : "Se liberaron \(result.freedBytes.formattedAsBytes)."
 
         if result.appRemoved && result.failedURLs.isEmpty {
             clearSelection()
             showResult(success: true,
-                       message: "Se liberaron \(result.freedBytes.formattedAsBytes).\(killedNote)")
+                       message: "\(freedVerb)\(killedNote)")
         } else if !result.appRemoved {
             showResult(success: false,
                        message: "La app sigue en disco.\(killedNote) " + (result.errors.first ?? "Operación cancelada."))

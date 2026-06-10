@@ -17,6 +17,7 @@ struct JunkCleanerView: View {
     @State private var isCleaning = false
     @State private var showingResult = false
     @State private var resultMessage = ""
+    @AppStorage(DeleteMode.storageKey) private var deleteToTrash = false
     @EnvironmentObject private var permissions: PermissionsMonitor
 
     // Hero moment al completar limpieza exitosa
@@ -65,14 +66,17 @@ struct JunkCleanerView: View {
                     .zIndex(10)
             }
         }
-        .alert("¿Eliminar \(service.selectedBytes.formattedAsBytes) permanentemente?",
+        .alert(deleteToTrash
+                ? "¿Mover \(service.selectedBytes.formattedAsBytes) a la Papelera?"
+                : "¿Eliminar \(service.selectedBytes.formattedAsBytes) permanentemente?",
                isPresented: $showingConfirm) {
             Button("Cancelar", role: .cancel) { }
-            Button("Eliminar permanentemente", role: .destructive) {
+            Button(deleteToTrash ? "Mover a Papelera" : "Eliminar permanentemente",
+                   role: .destructive) {
                 Task { await runClean() }
             }
         } message: {
-            Text("Los elementos se borrarán de forma permanente. Esta acción NO se puede deshacer.")
+            Text(confirmMessage)
         }
         // El alert se queda sólo para casos con error; el éxito muestra el Hero.
         .alert("Limpieza con errores", isPresented: $showingResult) {
@@ -111,10 +115,10 @@ struct JunkCleanerView: View {
                         .symbolEffect(.bounce, value: confettiTrigger)
                 }
                 VStack(spacing: 6) {
-                    Text("LIBERASTE")
+                    Text(deleteToTrash ? "A LA PAPELERA" : "LIBERASTE")
                         .font(.label).foregroundStyle(Theme.textTertiary)
                     AnimatedByteCounter(bytes: heroBytes)
-                    Text("Tu Mac respira mejor 🎉")
+                    Text(deleteToTrash ? "Recuperables desde la Papelera 🗑️" : "Tu Mac respira mejor 🎉")
                         .font(.titleMedium).foregroundStyle(Theme.textSecondary)
                 }
                 Button(action: { withAnimation(Anim.smooth) { showingHero = false } }) {
@@ -242,6 +246,17 @@ struct JunkCleanerView: View {
 
     // MARK: - Header
 
+    private var confirmMessage: String {
+        if deleteToTrash {
+            var msg = "Los elementos se moverán a la Papelera del sistema; podrás recuperarlos desde ahí."
+            if service.selectionIncludesAlwaysPermanent {
+                msg += "\n\nExcepción: snapshots de Time Machine, simuladores y el contenido de la propia Papelera se eliminan SIEMPRE de forma permanente."
+            }
+            return msg
+        }
+        return "Los elementos se borrarán de forma permanente. Esta acción NO se puede deshacer."
+    }
+
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 8) {
@@ -256,7 +271,10 @@ struct JunkCleanerView: View {
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
-            actionButton
+            VStack(alignment: .trailing, spacing: 10) {
+                actionButton
+                TrashModeToggle()
+            }
         }
     }
 
@@ -283,7 +301,7 @@ struct JunkCleanerView: View {
             Button(action: { showingConfirm = true }) {
                 HStack(spacing: 8) {
                     if isCleaning { ProgressView().controlSize(.small).tint(.white) }
-                    else { Image(systemName: "trash.fill") }
+                    else { Image(systemName: deleteToTrash ? "arrow.up.bin.fill" : "trash.fill") }
                     Text(isCleaning ? "Limpiando…" : "Limpiar \(service.selectedBytes.formattedAsBytes)")
                 }
             }
@@ -392,11 +410,12 @@ struct JunkCleanerView: View {
             }
         }
 
-        let freed = await service.cleanSelected(adminSession: admin)
+        let freed = await service.cleanSelected(adminSession: admin, moveToTrash: deleteToTrash)
         isCleaning = false
         if let err = service.lastError {
             // Caso con errores: alert
-            resultMessage = "Se liberaron \(freed.formattedAsBytes), pero hubo errores:\n\n\(err)"
+            let verb = deleteToTrash ? "Se enviaron \(freed.formattedAsBytes) a la Papelera" : "Se liberaron \(freed.formattedAsBytes)"
+            resultMessage = "\(verb), pero hubo errores:\n\n\(err)"
             showingResult = true
         } else {
             // Caso éxito: Hero moment con confetti + counter

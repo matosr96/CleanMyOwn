@@ -17,6 +17,7 @@ struct LargeFilesView: View {
     @State private var showingResult = false
     @State private var resultMessage = ""
     @State private var resultHadErrors = false
+    @AppStorage(DeleteMode.storageKey) private var deleteToTrash = false
 
     enum Tab { case large, dupes }
 
@@ -32,11 +33,17 @@ struct LargeFilesView: View {
             .padding(32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .alert("¿Eliminar \(service.selectedBytes.formattedAsBytes) permanentemente?", isPresented: $showingConfirm) {
+        .alert(deleteToTrash
+                ? "¿Mover \(service.selectedBytes.formattedAsBytes) a la Papelera?"
+                : "¿Eliminar \(service.selectedBytes.formattedAsBytes) permanentemente?",
+               isPresented: $showingConfirm) {
             Button("Cancelar", role: .cancel) {}
-            Button("Eliminar permanentemente", role: .destructive) { Task { await runDelete() } }
+            Button(deleteToTrash ? "Mover a Papelera" : "Eliminar permanentemente",
+                   role: .destructive) { Task { await runDelete() } }
         } message: {
-            Text("Los archivos se borrarán de forma permanente del disco. Esta acción NO se puede deshacer.")
+            Text(deleteToTrash
+                 ? "Los archivos se moverán a la Papelera del sistema; podrás recuperarlos desde ahí."
+                 : "Los archivos se borrarán de forma permanente del disco. Esta acción NO se puede deshacer.")
         }
         .alert(resultHadErrors ? "Limpieza con errores" : "Limpieza completada",
                isPresented: $showingResult) {
@@ -103,13 +110,15 @@ struct LargeFilesView: View {
             if service.selectedBytes > 0 {
                 Button(action: { showingConfirm = true }) {
                     HStack(spacing: 8) {
-                        Image(systemName: "trash.fill")
+                        Image(systemName: deleteToTrash ? "arrow.up.bin.fill" : "trash.fill")
                         Text("Eliminar \(service.selectedBytes.formattedAsBytes)")
                     }
                 }
                 .buttonStyle(PolishedDestructiveButtonStyle(horizontal: 18, vertical: 11))
                 .disabled(isDeleting)
             }
+
+            TrashModeToggle()
         }
     }
 
@@ -246,14 +255,17 @@ struct LargeFilesView: View {
 
     private func runDelete() async {
         isDeleting = true
-        let freed = await service.deleteSelected()
+        let freed = await service.deleteSelected(moveToTrash: deleteToTrash)
         isDeleting = false
+        let verb = deleteToTrash
+            ? "Se enviaron \(freed.formattedAsBytes) a la Papelera"
+            : "Se liberaron \(freed.formattedAsBytes)"
         if let err = service.lastError {
             resultHadErrors = true
-            resultMessage = "Se liberaron \(freed.formattedAsBytes), pero hubo errores:\n\n\(err)"
+            resultMessage = "\(verb), pero hubo errores:\n\n\(err)"
         } else {
             resultHadErrors = false
-            resultMessage = "Se liberaron \(freed.formattedAsBytes)."
+            resultMessage = "\(verb)."
         }
         showingResult = true
     }

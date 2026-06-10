@@ -669,11 +669,31 @@ final class JunkScanService: ObservableObject {
 
     // MARK: - Limpieza
 
-    /// Elimina permanentemente todos los items seleccionados.
-    /// Si hay items que requieren admin (snapshots TM), `adminSession` debe estar
-    /// activo o se omitirán.
+    /// ¿La selección incluye items que se borran SIEMPRE de forma permanente
+    /// aunque el modo Papelera esté activo? (snapshots TM, simuladores, y el
+    /// contenido de la propia Papelera)
+    var selectionIncludesAlwaysPermanent: Bool {
+        let trashPrefix = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".Trash").path + "/"
+        for item in results.flatMap(\.items) where selection.contains(item.id) {
+            switch item.kind {
+            case .localSnapshot, .simulator: return true
+            case .file(let url): if url.path.hasPrefix(trashPrefix) { return true }
+            }
+        }
+        return false
+    }
+
+    /// Elimina todos los items seleccionados.
+    /// - `moveToTrash`: los items file-based van a la Papelera del sistema
+    ///   (recuperables). Excepciones siempre permanentes: snapshots TM,
+    ///   simuladores, y lo que ya está en ~/.Trash (vaciar la Papelera es
+    ///   permanente por naturaleza). En este modo NO hay escalado a root —
+    ///   root no puede "mover a la Papelera" del usuario.
+    /// - Si hay items que requieren admin (snapshots TM), `adminSession` debe
+    ///   estar activo o se omitirán.
     @discardableResult
-    func cleanSelected(adminSession: AdminSessionService? = nil) async -> Int64 {
+    func cleanSelected(adminSession: AdminSessionService? = nil, moveToTrash: Bool = false) async -> Int64 {
         let selectedItems = results.flatMap(\.items).filter { selection.contains($0.id) }
         guard !selectedItems.isEmpty else { return 0 }
 
@@ -700,10 +720,17 @@ final class JunkScanService: ObservableObject {
         let fm = FileManager.default
 
         // 1) Files — primer pase normal
+        let trashPrefix = fm.homeDirectoryForCurrentUser.appendingPathComponent(".Trash").path + "/"
         var stillExisting: [(item: JunkItem, url: URL)] = []
         for item in selectedItems {
             guard case .file(let url) = item.kind else { continue }
-            try? fm.removeItem(at: url)
+            // Lo que ya está en ~/.Trash se borra de verdad incluso en modo
+            // Papelera: moverlo "a la Papelera" sería un no-op.
+            if moveToTrash && !url.path.hasPrefix(trashPrefix) {
+                try? fm.trashItem(at: url, resultingItemURL: nil)
+            } else {
+                try? fm.removeItem(at: url)
+            }
             if !fm.fileExists(atPath: url.path) {
                 freed += item.sizeBytes
                 removedIds.insert(item.id)
@@ -713,8 +740,9 @@ final class JunkScanService: ObservableObject {
         }
 
         // 1b) Si quedaron paths sin borrar (típicamente Containers protegidos por
-        // TCC), reintentar con admin si está activo.
-        if !stillExisting.isEmpty, let admin = adminSession, admin.isActive {
+        // TCC), reintentar con admin si está activo. Sólo en modo permanente:
+        // root no puede mover archivos a la Papelera del usuario.
+        if !stillExisting.isEmpty, !moveToTrash, let admin = adminSession, admin.isActive {
             let paths = stillExisting.map { $0.url.path }
             _ = await admin.removeAsRoot(paths: paths)
             let hasFDA = AdminSessionService.hasFullDiskAccess()
@@ -729,14 +757,17 @@ final class JunkScanService: ObservableObject {
                     failures.append("\(item.displayName): no se pudo eliminar — \(hint)")
                 }
             }
-        } else {
-            // Sin admin: los que quedaron se reportan como fallo
-            let hasFDA = AdminSessionService.hasFullDiskAccess()
+        } else if !stillExisting.isEmpty {
             for (item, _) in stillExisting {
-                let hint = hasFDA
-                    ? "activa el modo administrador y reintenta"
-                    : "activa el modo administrador y otorga FDA"
-                failures.append("\(item.displayName): protegido — \(hint)")
+                let hint: String
+                if moveToTrash {
+                    hint = "no se pudo mover a la Papelera — desactiva el modo Papelera para borrado permanente (con admin si hace falta)"
+                } else if AdminSessionService.hasFullDiskAccess() {
+                    hint = "protegido — activa el modo administrador y reintenta"
+                } else {
+                    hint = "protegido — activa el modo administrador y otorga FDA"
+                }
+                failures.append("\(item.displayName): \(hint)")
             }
         }
 
