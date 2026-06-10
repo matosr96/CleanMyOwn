@@ -79,7 +79,7 @@ struct DashboardView: View {
                 } else {
                     Text("Un escaneo, todo tu Mac")
                         .font(.titleLarge).foregroundStyle(Theme.textPrimary)
-                    Text("Cachés, logs, papelera, builds de Xcode, cachés de desarrollo, datos huérfanos, snapshots y simuladores — de un solo golpe. Nada se borra sin tu confirmación.")
+                    Text("Cachés, registros, papelera, restos de apps desinstaladas y archivos temporales del sistema — todo de un solo golpe. Nada se borra sin tu confirmación.")
                         .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }

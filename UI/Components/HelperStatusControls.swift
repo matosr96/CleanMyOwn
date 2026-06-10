@@ -77,13 +77,13 @@ struct HelperStatusControls: View {
     private var label: String {
         switch admin.helperStatus {
         case .enabled:
-            return "Asistente en segundo plano activo — operaciones root sin contraseña, persistente entre sesiones."
+            return "Asistente en segundo plano activo — tareas protegidas sin contraseña, para siempre."
         case .requiresApproval:
             return "Asistente pendiente de aprobación en Ajustes → Ítems de inicio → Permitir en segundo plano."
         default:
             // macOS reporta .notFound (no .notRegistered) antes del primer
             // registro, así que ambos estados muestran la invitación a instalar.
-            return "Opcional: instala el asistente privilegiado y olvídate de la contraseña (SMAppService)."
+            return "Opcional: instala el asistente en segundo plano y olvídate de la contraseña."
         }
     }
 }

@@ -233,7 +233,7 @@ struct UninstallerView: View {
                     icon: "shippingbox.fill",
                     tint: Theme.warning,
                     title: "Elige una app",
-                    subtitle: "Selecciona una app de la lista para ver sus archivos asociados (Application Support, Caches, Containers, etc.) y desinstalarla limpiamente."
+                    subtitle: "Selecciona una app de la lista para ver todo lo que guarda en tu Mac (preferencias, cachés, datos) y desinstalarla sin dejar restos."
                 )
             }
         }

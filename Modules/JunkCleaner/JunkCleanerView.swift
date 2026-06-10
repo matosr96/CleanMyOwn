@@ -176,7 +176,7 @@ struct JunkCleanerView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Falta «Acceso completo al disco»")
                     .font(.titleMedium).foregroundStyle(Theme.textPrimary)
-                Text("macOS protege ~/Library/Containers de apps sandboxed con TCC. Sin FDA, ni siquiera con admin podemos borrar esos directorios huérfanos. Añade CleanMyOwn a la lista en Configuración del Sistema y reinícialo.")
+                Text("macOS protege los datos de algunas apps con un permiso adicional. Concede «Acceso completo al disco» a CleanMyOwn en Configuración del Sistema para poder limpiarlos.")
                     .font(.bodySmall).foregroundStyle(Theme.textSecondary)
             }
             Spacer()
@@ -214,8 +214,8 @@ struct JunkCleanerView: View {
                 Text(admin.isActive ? "Modo administrador activo" : "Algunos items requieren administrador")
                     .font(.titleMedium).foregroundStyle(Theme.textPrimary)
                 Text(admin.isActive
-                     ? "Snapshots de TM y archivos protegidos por el sistema se borrarán sin pedir contraseña adicional."
-                     : "Recomendado para borrar snapshots de Time Machine y datos huérfanos protegidos por TCC. Pedimos la contraseña una sola vez.")
+                     ? "Las copias de Time Machine y los archivos protegidos se borrarán sin pedir la contraseña otra vez."
+                     : "Necesario para borrar copias de Time Machine y archivos protegidos. Pedimos la contraseña una sola vez.")
                     .font(.bodySmall).foregroundStyle(Theme.textSecondary)
             }
             Spacer()
@@ -273,7 +273,7 @@ struct JunkCleanerView: View {
                     Text("Liberar espacio")
                         .font(.displayMedium)
                         .foregroundStyle(Theme.textPrimary)
-                    Text("Cachés, logs y datos temporales que tu Mac ya no necesita.")
+                    Text("Archivos temporales, registros y datos que tu Mac ya no necesita.")
                         .font(.bodyMedium)
                         .foregroundStyle(Theme.textSecondary)
                 }
@@ -403,7 +403,7 @@ struct JunkCleanerView: View {
             icon: "sparkles",
             tint: Theme.success,
             title: "Listo para escanear",
-            subtitle: "Pulsa «Escanear» para inspeccionar cachés, logs y archivos temporales.\nNada se borra hasta que tú lo confirmes — y el borrado es permanente."
+            subtitle: "Pulsa «Escanear» para revisar archivos temporales, registros y papelera.\nNada se borra hasta que tú lo confirmes."
         )
         .frame(minHeight: 460)
     }

@@ -51,9 +51,9 @@ struct LoginItemsView: View {
             HStack(alignment: .center, spacing: 16) {
                 HeaderIconChip(icon: "power", tint: Theme.danger)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("INICIO").font(.label).foregroundStyle(Theme.textTertiary)
-                    Text("Launch Agents y Daemons").font(.displayMedium).foregroundStyle(Theme.textPrimary)
-                    Text("Procesos que se cargan al iniciar sesión o al arrancar el Mac.")
+                    Text("ARRANQUE").font(.label).foregroundStyle(Theme.textTertiary)
+                    Text("Apps en segundo plano").font(.displayMedium).foregroundStyle(Theme.textPrimary)
+                    Text("Programas que se ponen en marcha al encender tu Mac o iniciar sesión.")
                         .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
                 }
             }
@@ -69,13 +69,13 @@ struct LoginItemsView: View {
 
     private var searchAndStats: some View {
         HStack(spacing: 14) {
-            SearchField(text: $query, placeholder: "Buscar por label o programa…")
+            SearchField(text: $query, placeholder: "Buscar por nombre o programa…")
                 .frame(maxWidth: 380)
 
             Spacer()
-            statBadge(label: "USUARIO", value: count(.userAgent), tint: Theme.success)
+            statBadge(label: "TU USUARIO", value: count(.userAgent), tint: Theme.success)
             statBadge(label: "SISTEMA", value: count(.systemAgent), tint: Theme.accent)
-            statBadge(label: "DAEMONS", value: count(.systemDaemon), tint: Theme.warning)
+            statBadge(label: "SERVICIOS", value: count(.systemDaemon), tint: Theme.warning)
         }
     }
 
@@ -119,7 +119,7 @@ struct LoginItemsView: View {
     private func sectionView(scope: LaunchAgentScope, agents: [LaunchAgent]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(scope.rawValue).font(.titleMedium).foregroundStyle(Theme.textPrimary)
+                Text(scope.displayName).font(.titleMedium).foregroundStyle(Theme.textPrimary)
                 if scope.requiresAdmin {
                     Text("Sólo lectura").font(.label).foregroundStyle(Theme.warning)
                         .padding(.horizontal, 8).padding(.vertical, 3)
@@ -175,9 +175,9 @@ private struct AgentRow: View {
                 .transition(.opacity)
             }
             HStack(spacing: 6) {
-                if agent.runAtLoad { badge("RUN AT LOAD", tint: Theme.accent) }
-                if agent.keepAlive { badge("KEEP ALIVE", tint: Theme.warning) }
-                if agent.isDisabledByFile { badge("DISABLED", tint: Theme.danger) }
+                if agent.runAtLoad { badge("AL INICIAR", tint: Theme.accent) }
+                if agent.keepAlive { badge("SIEMPRE ACTIVO", tint: Theme.warning) }
+                if agent.isDisabledByFile { badge("DESACTIVADO", tint: Theme.danger) }
             }
             if agent.scope == .userAgent {
                 Toggle("", isOn: Binding(

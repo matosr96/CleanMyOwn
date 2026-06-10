@@ -128,8 +128,8 @@ final class JunkScanService: ObservableObject {
         return [
             JunkCategory(
                 id: "user.caches",
-                name: "Cachés de usuario",
-                blurb: "Datos temporales que las apps regeneran automáticamente.",
+                name: "Cachés de aplicaciones",
+                blurb: "Datos temporales que las apps vuelven a generar solas cuando los necesitan.",
                 icon: "tray.2.fill",
                 tint: Color(red: 0.30, green: 0.85, blue: 0.55),
                 kind: .fileBased(roots: [home.appendingPathComponent("Library/Caches")], listsChildren: true),
@@ -138,8 +138,8 @@ final class JunkScanService: ObservableObject {
             ),
             JunkCategory(
                 id: "user.logs",
-                name: "Logs de aplicaciones",
-                blurb: "Registros de diagnóstico del usuario.",
+                name: "Registros de actividad",
+                blurb: "Archivos de diagnóstico que las apps acumulan con el tiempo.",
                 icon: "doc.text.fill",
                 tint: Color(red: 0.40, green: 0.70, blue: 1.0),
                 kind: .fileBased(roots: [home.appendingPathComponent("Library/Logs")], listsChildren: true),
@@ -149,7 +149,7 @@ final class JunkScanService: ObservableObject {
             JunkCategory(
                 id: "trash",
                 name: "Papelera",
-                blurb: "Archivos ya enviados a la papelera del sistema.",
+                blurb: "Archivos que ya enviaste a la Papelera. Vaciarla libera el espacio de verdad.",
                 icon: "trash.fill",
                 tint: Color(red: 1.0, green: 0.55, blue: 0.40),
                 kind: .fileBased(roots: [home.appendingPathComponent(".Trash")], listsChildren: true),
@@ -158,8 +158,8 @@ final class JunkScanService: ObservableObject {
             ),
             JunkCategory(
                 id: "xcode.derived",
-                name: "Xcode · DerivedData",
-                blurb: "Builds intermedios de Xcode. Se regeneran al compilar.",
+                name: "Xcode · Datos de compilación",
+                blurb: "Archivos intermedios que Xcode vuelve a generar al compilar.",
                 icon: "hammer.fill",
                 tint: Color(red: 0.85, green: 0.50, blue: 1.0),
                 kind: .fileBased(roots: [home.appendingPathComponent("Library/Developer/Xcode/DerivedData")], listsChildren: true),
@@ -168,8 +168,8 @@ final class JunkScanService: ObservableObject {
             ),
             JunkCategory(
                 id: "xcode.archives",
-                name: "Xcode · Archives antiguos",
-                blurb: "Archivos .xcarchive de builds históricos.",
+                name: "Xcode · Versiones archivadas",
+                blurb: "Copias empaquetadas de versiones antiguas de tus apps.",
                 icon: "archivebox.fill",
                 tint: Color(red: 1.0, green: 0.65, blue: 0.20),
                 kind: .fileBased(roots: [home.appendingPathComponent("Library/Developer/Xcode/Archives")], listsChildren: true),
@@ -178,8 +178,8 @@ final class JunkScanService: ObservableObject {
             ),
             JunkCategory(
                 id: "xcode.devicesupport",
-                name: "Xcode · iOS DeviceSupport",
-                blurb: "Símbolos de versiones de iOS que ya no usas.",
+                name: "Xcode · Soporte de dispositivos",
+                blurb: "Datos de versiones de iOS que ya no conectas a este Mac.",
                 icon: "iphone",
                 tint: Color(red: 0.30, green: 0.85, blue: 0.95),
                 kind: .fileBased(roots: [home.appendingPathComponent("Library/Developer/Xcode/iOS DeviceSupport")], listsChildren: true),
@@ -188,8 +188,8 @@ final class JunkScanService: ObservableObject {
             ),
             JunkCategory(
                 id: "simulator.caches",
-                name: "iOS Simulator · Cachés",
-                blurb: "Datos temporales de simuladores de iOS.",
+                name: "Simulador de iOS · Cachés",
+                blurb: "Datos temporales de los dispositivos de prueba de Xcode.",
                 icon: "ipad",
                 tint: Color(red: 0.40, green: 0.55, blue: 1.0),
                 kind: .fileBased(roots: [home.appendingPathComponent("Library/Developer/CoreSimulator/Caches")], listsChildren: true),
@@ -201,8 +201,8 @@ final class JunkScanService: ObservableObject {
 
             JunkCategory(
                 id: "dev.caches",
-                name: "Cachés de desarrollo",
-                blurb: "npm, yarn, pnpm, pip, Homebrew, Cargo, Gradle, Maven, CocoaPods, Go.",
+                name: "Cachés de herramientas de desarrollo",
+                blurb: "Paquetes descargados por herramientas como npm, Homebrew o Maven. Se vuelven a descargar si hacen falta.",
                 icon: "hammer.circle.fill",
                 tint: Color(red: 0.95, green: 0.60, blue: 0.30),
                 kind: .devCaches(paths: [
@@ -233,8 +233,8 @@ final class JunkScanService: ObservableObject {
             ),
             JunkCategory(
                 id: "orphan.appdata",
-                name: "Datos de apps desinstaladas",
-                blurb: "Cachés y soporte de apps cuyo bundle ID ya no está en /Applications.",
+                name: "Restos de apps desinstaladas",
+                blurb: "Datos que dejaron atrás aplicaciones que ya no tienes instaladas.",
                 icon: "questionmark.folder.fill",
                 tint: Color(red: 1.0, green: 0.40, blue: 0.45),
                 kind: .orphanedAppData(directories: [
@@ -252,8 +252,8 @@ final class JunkScanService: ObservableObject {
             ),
             JunkCategory(
                 id: "tm.snapshots",
-                name: "Snapshots locales de Time Machine",
-                blurb: "Backups locales del volumen / que ocupan espacio invisible.",
+                name: "Copias locales de Time Machine",
+                blurb: "Instantáneas temporales que Time Machine guarda en el disco interno.",
                 icon: "clock.arrow.circlepath",
                 tint: Color(red: 0.55, green: 0.75, blue: 1.0),
                 kind: .timeMachineSnapshots,
@@ -262,8 +262,8 @@ final class JunkScanService: ObservableObject {
             ),
             JunkCategory(
                 id: "sim.obsolete",
-                name: "Simuladores iOS obsoletos",
-                blurb: "Simuladores de runtimes que Xcode actual ya no soporta.",
+                name: "Simuladores obsoletos",
+                blurb: "Dispositivos de prueba de versiones que Xcode ya no utiliza.",
                 icon: "iphone.slash",
                 tint: Color(red: 0.85, green: 0.50, blue: 1.0),
                 kind: .iOSSimulators,

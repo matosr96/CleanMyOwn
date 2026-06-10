@@ -53,8 +53,8 @@ struct MemoryFreerView: View {
                     Text("MEMORIA").font(.label).foregroundStyle(Theme.textTertiary)
                     Text("Liberar RAM").font(.displayMedium).foregroundStyle(Theme.textPrimary)
                     Text(admin.helperEnabled
-                         ? "Ejecuta `purge` para liberar memoria inactiva y comprimida — sin contraseña, vía el asistente."
-                         : "Ejecuta `purge` para liberar memoria inactiva y comprimida. La contraseña se pide una sola vez por sesión.")
+                         ? "Libera con un clic la memoria que el sistema retiene sin necesidad — sin contraseña, vía el asistente."
+                         : "Libera con un clic la memoria que el sistema retiene sin necesidad. La contraseña se pide una sola vez por sesión.")
                         .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
                 }
             }
@@ -197,7 +197,7 @@ struct MemoryFreerView: View {
             Image(systemName: "info.circle")
                 .foregroundStyle(Theme.textTertiary)
                 .font(.system(size: 13))
-            Text("purge descarta páginas inactivas y caché de archivos. macOS ya gestiona la RAM por su cuenta — úsalo de forma puntual (antes de una app pesada o un benchmark), no como rutina: las apps recargarán su caché y eso también cuesta.")
+            Text("Liberar memoria descarta datos inactivos y caché de archivos. macOS ya gestiona la RAM por su cuenta — úsalo de forma puntual (antes de abrir una app pesada), no como rutina: las apps volverán a cargar sus datos y eso también tiene un coste.")
                 .font(.bodySmall).foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

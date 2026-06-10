@@ -2,21 +2,22 @@
 //  Sidebar.swift
 //  CleanMyOwn
 //
-//  Barra lateral con navegación entre módulos. Más ancha y con personalidad:
-//  hero del logo arriba con halo + título grande, items con highlight de
-//  color por módulo, footer con pills de estado de permisos.
+//  Barra lateral con navegación entre módulos. Hero del logo con halo 3D,
+//  chips de color permanentes por módulo, highlight de selección que se
+//  DESLIZA entre items (matchedGeometryEffect), tilt 3D al hover y footer
+//  con pills de estado.
 //
 
 import SwiftUI
 
-/// Cada módulo de la app.
+/// Cada módulo de la app. El rawValue es el nombre visible.
 enum AppModule: String, CaseIterable, Identifiable {
-    case dashboard = "Dashboard"
+    case dashboard = "Resumen"
     case junkCleaner = "Limpieza"
     case uninstaller = "Desinstalador"
     case largeFiles = "Archivos grandes"
     case memoryFreer = "Memoria"
-    case loginItems = "Inicio"
+    case loginItems = "Arranque"
 
     var id: String { rawValue }
 
@@ -42,15 +43,15 @@ enum AppModule: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Subtítulo opcional bajo el nombre del módulo en la sidebar.
+    /// Subtítulo bajo el nombre del módulo — lenguaje para cualquier usuario.
     var subtitle: String {
         switch self {
-        case .dashboard:    return "Estado del sistema"
+        case .dashboard:    return "Estado de tu Mac"
         case .junkCleaner:  return "Liberar espacio"
-        case .uninstaller:  return "Apps instaladas"
-        case .largeFiles:   return "Archivos pesados"
+        case .uninstaller:  return "Apps y sus restos"
+        case .largeFiles:   return "Pesados y duplicados"
         case .memoryFreer:  return "Liberar RAM"
-        case .loginItems:   return "Launch Agents"
+        case .loginItems:   return "Apps en segundo plano"
         }
     }
 }
@@ -62,6 +63,9 @@ struct Sidebar: View {
 
     @State private var logoRotation: Double = -10
     @State private var logoGlow: Double = 0.4
+    /// Namespace del highlight de selección: el fondo y el indicador lateral
+    /// se DESLIZAN de un item a otro en vez de aparecer/desaparecer.
+    @Namespace private var selectionNamespace
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -72,7 +76,12 @@ struct Sidebar: View {
                     SidebarItem(
                         module: module,
                         isSelected: selection == module,
-                        action: { selection = module }
+                        namespace: selectionNamespace,
+                        action: {
+                            withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                                selection = module
+                            }
+                        }
                     )
                 }
             }
@@ -144,7 +153,7 @@ struct Sidebar: View {
                 Text("CleanMyOwn")
                     .font(.system(size: 24, weight: .black, design: .rounded))
                     .foregroundStyle(Theme.textPrimary)
-                Text("Limpia tu Mac.")
+                Text("Tu Mac, como nuevo.")
                     .font(.bodySmall)
                     .foregroundStyle(Theme.textTertiary)
             }
@@ -171,7 +180,7 @@ struct Sidebar: View {
             sectionLabel("ESTADO")
             statusPill(
                 icon: permissions.hasFullDiskAccess ? "checkmark.shield.fill" : "exclamationmark.shield.fill",
-                text: permissions.hasFullDiskAccess ? "Acceso disco completo" : "Acceso disco parcial",
+                text: permissions.hasFullDiskAccess ? "Acceso total al disco" : "Acceso al disco parcial",
                 tint: permissions.hasFullDiskAccess ? Theme.success : Theme.warning
             )
             statusPill(
@@ -219,6 +228,7 @@ struct Sidebar: View {
 private struct SidebarItem: View {
     let module: AppModule
     let isSelected: Bool
+    let namespace: Namespace.ID
     let action: () -> Void
 
     @State private var hovering = false
@@ -226,15 +236,20 @@ private struct SidebarItem: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                // Indicador animado a la izquierda
-                Capsule()
-                    .fill(module.accentColor)
-                    .frame(width: 4, height: isSelected ? 32 : 0)
-                    .opacity(isSelected ? 1 : 0)
-                    .shadow(color: module.accentColor.opacity(0.6), radius: 6)
+                // Indicador lateral — viaja entre items con la selección
+                ZStack {
+                    if isSelected {
+                        Capsule()
+                            .fill(module.accentColor)
+                            .frame(width: 4, height: 32)
+                            .shadow(color: module.accentColor.opacity(0.6), radius: 6)
+                            .matchedGeometryEffect(id: "sidebar.indicator", in: namespace)
+                    }
+                }
+                .frame(width: 4)
 
-                // Chip SIEMPRE en color (estilo CleanMyMac): gradiente lleno
-                // al seleccionar, tinte suave en reposo.
+                // Chip SIEMPRE en color: gradiente lleno al seleccionar,
+                // tinte suave en reposo.
                 ZStack {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
                         .fill(isSelected
@@ -247,6 +262,7 @@ private struct SidebarItem: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(isSelected ? .white : module.accentColor)
                         .frame(width: 36, height: 36)
+                        .symbolEffect(.bounce, value: isSelected)
                 }
                 .shadow(color: module.accentColor.opacity(isSelected ? 0.45 : 0),
                         radius: 8, y: 2)
@@ -263,20 +279,31 @@ private struct SidebarItem: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isSelected ? Color.white.opacity(0.06)
-                          : (hovering ? Color.white.opacity(0.03) : Color.clear))
+            .background {
+                // Highlight que se DESLIZA al item seleccionado
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.white.opacity(0.06))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(module.accentColor.opacity(0.22), lineWidth: 1)
+                        )
+                        .matchedGeometryEffect(id: "sidebar.selection", in: namespace)
+                } else if hovering {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.white.opacity(0.03))
+                }
+            }
+            // Tilt 3D sutil al hover, como si el item se inclinara hacia ti
+            .rotation3DEffect(
+                .degrees(hovering && !isSelected ? 3 : 0),
+                axis: (x: 0.35, y: -1, z: 0),
+                perspective: 0.7
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(isSelected ? module.accentColor.opacity(0.22) : Color.clear, lineWidth: 1)
-            )
-            .scaleEffect(hovering && !isSelected ? 1.012 : 1.0)
+            .scaleEffect(hovering && !isSelected ? 1.015 : 1.0)
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .animation(Anim.bouncy, value: isSelected)
         .animation(Anim.hover, value: hovering)
     }
 }

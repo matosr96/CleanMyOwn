@@ -19,6 +19,16 @@ enum LaunchAgentScope: String {
     case systemDaemon = "System (Daemons)"
 
     var requiresAdmin: Bool { self != .userAgent }
+
+    /// Nombre visible — lenguaje para cualquier usuario (el rawValue queda
+    /// para ordenación/identidad interna).
+    var displayName: String {
+        switch self {
+        case .userAgent: return "Tu usuario"
+        case .systemAgent: return "Sistema · Agentes"
+        case .systemDaemon: return "Sistema · Servicios"
+        }
+    }
 }
 
 struct LaunchAgent: Identifiable, Hashable {

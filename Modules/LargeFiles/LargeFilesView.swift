@@ -59,7 +59,7 @@ struct LargeFilesView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("ARCHIVOS GRANDES").font(.label).foregroundStyle(Theme.textTertiary)
                     Text("Encuentra qué ocupa espacio").font(.displayMedium).foregroundStyle(Theme.textPrimary)
-                    Text("Escanea archivos pesados y detecta duplicados por contenido (SHA256).")
+                    Text("Encuentra los archivos que más espacio ocupan y detecta duplicados comparando su contenido.")
                         .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
                 }
             }
@@ -176,7 +176,7 @@ struct LargeFilesView: View {
                     icon: "doc.zipper",
                     tint: Color(red: 0.85, green: 0.50, blue: 1.0),
                     title: "Encuentra archivos pesados",
-                    subtitle: "Configura el umbral de tamaño y pulsa «Escanear» para revisar tu carpeta de inicio. Los duplicados se detectan después con SHA256."
+                    subtitle: "Elige el tamaño mínimo y pulsa «Escanear» para revisar tu carpeta personal. Después podrás detectar duplicados comparando su contenido."
                 )
                 .padding(.vertical, 24)
             } else {

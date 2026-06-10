@@ -131,7 +131,7 @@ struct OnboardingView: View {
             }
             Text("1 · Acceso completo al disco")
                 .font(.displayMedium).foregroundStyle(Theme.textPrimary)
-            Text("macOS protege los datos de apps sandboxed (~/Library/Containers) con TCC. Sin este permiso es imposible borrarlos —\nni siquiera con admin.")
+            Text("macOS protege los datos de algunas apps con un permiso especial. Sin él, una parte de la limpieza queda fuera de alcance —\nincluso con permisos de administrador.")
                 .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center).frame(maxWidth: 520)
 
@@ -174,7 +174,7 @@ struct OnboardingView: View {
             }
             Text("2 · Adiós a las contraseñas")
                 .font(.displayMedium).foregroundStyle(Theme.textPrimary)
-            Text("Instala el asistente en segundo plano y las operaciones que requieren root (apps protegidas, snapshots de Time Machine, liberar RAM) funcionarán sin pedirte la contraseña nunca más. Se aprueba UNA vez y queda activo para siempre.")
+            Text("Instala el asistente en segundo plano y las tareas que requieren permisos de administrador (apps protegidas, copias de Time Machine, liberar memoria) funcionarán sin pedirte la contraseña nunca más. Se aprueba UNA vez y queda activo para siempre.")
                 .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center).frame(maxWidth: 540)
 
@@ -253,11 +253,11 @@ struct OnboardingView: View {
     private var doneMessage: String {
         switch (monitor.hasFullDiskAccess, admin.helperEnabled) {
         case (true, true):
-            return "FDA concedido y asistente activo: limpieza completa con privilegios, sin contraseñas, para siempre. Como debe ser."
+            return "Acceso al disco concedido y asistente activo: limpieza completa, sin contraseñas, para siempre. Como debe ser."
         case (true, false):
-            return "FDA concedido. Sin el asistente, las operaciones root pedirán tu contraseña una vez por sesión — puedes instalarlo cuando quieras desde los banners de Limpieza o Desinstalador."
+            return "Acceso al disco concedido. Sin el asistente, las tareas protegidas pedirán tu contraseña una vez por sesión — puedes instalarlo cuando quieras desde Limpieza o Desinstalador."
         case (false, true):
-            return "Asistente activo. Falta FDA para limpiar containers de apps sandboxed — concédelo desde el Dashboard cuando quieras."
+            return "Asistente activo. Falta el acceso completo al disco para limpiar los datos de algunas apps — concédelo desde Resumen cuando quieras."
         default:
             return "Continuamos sin permisos extra. Algunos elementos protegidos no se podrán borrar; concédelos más tarde desde el Dashboard."
         }
