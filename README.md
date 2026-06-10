@@ -40,8 +40,9 @@ The interesting problems in this domain aren't UI — they're **state**: which b
 | System integration | AppKit (`NSWorkspace`, `NSRunningApplication`), Mach syscalls (`host_statistics64`, `vm_statistics64`) |
 | Privileged operations | Authorization Services (`AuthorizationCreate` + `AuthorizationExecuteWithPrivileges`) |
 | Hashing | CryptoKit `SHA256` streaming, 4MB chunks |
-| Concurrency | `Task.detached`, `@Published` over Combine |
-| CLI bridges | `launchctl`, `tmutil`, `xcrun simctl`, `mdfind`, `osascript` |
+| Concurrency | `Task.detached` with explicit cancellation, `@Published` over Combine |
+| CLI bridges | `launchctl`, `tmutil`, `xcrun simctl`, `mdfind` — all via a deadlock-safe `ShellRunner` |
+| Testing | XCTest suite over the pure logic (`swift test`) |
 | Build | SwiftPM executable target, ad-hoc codesign, `run.sh` packager |
 
 ---
@@ -80,7 +81,13 @@ CleanMyOwn/
 
 A handful of choices that aren't obvious from the file tree:
 
-**Persistent `AuthorizationRef` instead of per-call `osascript`.** Each `osascript do shell script with administrator privileges` invocation runs in its own process and does not share the auth cache, so a 50-app batch uninstall would prompt 50 times. The app holds a single `AuthorizationRef` inside its own process, calls `AuthorizationCopyRights` once, and then routes every privileged shell command through `AuthorizationExecuteWithPrivileges`. One password prompt per session. See [AdminSessionService.swift](Core/Permissions/AdminSessionService.swift).
+**Persistent `AuthorizationRef` instead of per-call `osascript`.** Each `osascript do shell script with administrator privileges` invocation runs in its own process and does not share the auth cache, so a 50-app batch uninstall would prompt 50 times. The app holds a single `AuthorizationRef` inside its own process — shared app-wide as an `EnvironmentObject`, so switching modules never re-prompts — calls `AuthorizationCopyRights` once, and then routes every privileged command (including `purge`) through `AuthorizationExecuteWithPrivileges`. One password prompt per session. See [AdminSessionService.swift](Core/Permissions/AdminSessionService.swift).
+
+**Real exit codes out of a deprecated API.** `AuthorizationExecuteWithPrivileges` exposes neither the child PID nor its exit status, which makes "did the privileged delete actually work?" unanswerable. Every privileged command therefore runs through a `/bin/sh` wrapper that emits two markers down the communication pipe: its own PID (first line) and the tool's real exit code (last line, `printf`-prefixed with a newline so an unterminated tool output can't swallow it). The tool and its arguments travel as positional parameters (`$0`/`$@`) the shell never parses — zero injection surface. The PID enables reaping exactly that child instead of a global `waitpid(-1)` that would steal exit statuses from concurrent `Process` instances (`mdfind`, `simctl`, `launchctl`).
+
+**Root deletions gated by an allowlist.** `removeAsRoot` refuses any path outside the roots the app actually cleans (`~/Library`, `~/.Trash`, `/Applications`, `~/Applications`, and specific dev-cache directories) — and refuses the roots themselves, `/`, relative paths, and anything containing `.` or `..` components. A bug in any caller degrades into a rejected request instead of an arbitrary `rm -rf` as root.
+
+**Heuristics never pre-select.** After a scan, only regenerable categories (caches, logs, trash, Xcode artifacts) come pre-checked. Orphaned app data, Time Machine snapshots, and obsolete simulators stay unchecked — orphan detection is a heuristic, and one false positive would delete the preferences or licenses of an installed app. Same in the uninstaller: files matched only by app *name* get a "POR NOMBRE" badge and stay unchecked, since a generic name can collide with another app's data. Selection is built incrementally with `formUnion`, so anything the user unchecks mid-scan stays unchecked.
 
 **FDA status probed via TCC.db, not entitlement APIs.** macOS does not expose a public API to ask "do I have Full Disk Access?" The reliable proxy is whether `/Library/Application Support/com.apple.TCC/TCC.db` is readable — it requires FDA to open. `PermissionsMonitor` does that probe on a 2-second timer and on `NSApplication.didBecomeActiveNotification`, so the UI updates the instant the user grants permission in System Settings without an app restart. See [PermissionsMonitor.swift](Core/Permissions/PermissionsMonitor.swift).
 
@@ -109,6 +116,14 @@ The script builds release with `swift build -c release`, bundles the binary as `
 ```sh
 pkill -x CleanMyOwn      # stop
 ```
+
+### Tests
+
+```sh
+swift test
+```
+
+The suite covers the logic where a bug costs user data, without touching the system: bundle-ID heuristics and orphan detection, `tmutil`/`launchctl`/plist parsing, the root-removal allowlist matrix, uninstaller candidates (bundle-ID vs name matches), hash-based duplicate detection over temp files, CPU-delta math including `UInt32` wraparound, privileged-wrapper marker parsing (first-PID-wins / last-exit-wins against spoofed markers), and a regression test that floods `ShellRunner` with >1 MB per pipe to prove the pipe-buffer deadlock stays dead.
 
 ### Permissions
 
