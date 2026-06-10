@@ -50,11 +50,10 @@ struct SmartScanButton: View {
                     .overlay(Circle().stroke(Color.white.opacity(0.06), lineWidth: 1))
                     .frame(width: size - 30, height: size - 30)
 
-                VStack(spacing: 7) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: size * 0.21, weight: .bold))
-                        .foregroundStyle(Theme.brandGradient)
-                        .symbolEffect(.pulse, isActive: isScanning)
+                VStack(spacing: 10) {
+                    SweepGlyph()
+                        .frame(width: size * 0.26, height: size * 0.26)
+                        .opacity(isScanning ? 0.85 : 1)
                     Text(isScanning ? "Escaneando…" : "Escanear")
                         .font(.titleMedium)
                         .foregroundStyle(Theme.textPrimary)

@@ -50,30 +50,45 @@ let highlight = NSGradient(colors: [
 ])!
 highlight.draw(in: squircle, angle: -90)
 
-// Símbolo sparkles en blanco, centrado
-let config = NSImage.SymbolConfiguration(pointSize: 430, weight: .bold)
-if let symbol = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil)?
-    .withSymbolConfiguration(config) {
-    // Tintar a blanco: dibujar el símbolo y recomponer encima con sourceAtop
-    let tinted = NSImage(size: symbol.size)
-    tinted.lockFocus()
-    symbol.draw(at: .zero, from: .zero, operation: .sourceOver, fraction: 1.0)
-    NSColor.white.set()
-    NSRect(origin: .zero, size: symbol.size).fill(using: .sourceAtop)
-    tinted.unlockFocus()
+// SweepGlyph — la MISMA geometría que UI/Components/BrandMark.swift
+// (swoosh orbital + eco + punto cometa). El contexto de NSImage tiene la
+// Y hacia ARRIBA; el Canvas de SwiftUI hacia abajo, así que los ángulos
+// van negados para que el dibujo coincida visualmente.
+let glyphR: CGFloat = canvas * 0.255            // "radio" del glifo
+let center = CGPoint(x: canvas / 2, y: canvas / 2)
 
-    let symbolRect = NSRect(
-        x: (canvas - tinted.size.width) / 2,
-        y: (canvas - tinted.size.height) / 2,
-        width: tinted.size.width,
-        height: tinted.size.height
-    )
-    ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: 0, height: -8), blur: 22,
-                  color: NSColor.black.withAlphaComponent(0.30).cgColor)
-    tinted.draw(in: symbolRect)
-    ctx.restoreGState()
-}
+ctx.saveGState()
+ctx.setShadow(offset: CGSize(width: 0, height: -8), blur: 22,
+              color: NSColor.black.withAlphaComponent(0.30).cgColor)
+ctx.setStrokeColor(NSColor.white.cgColor)
+ctx.setLineCap(.round)
+
+// Arco principal: en pantalla va de -30° a 195° (y-abajo) → negar en y-arriba
+ctx.setLineWidth(glyphR * 0.30)
+ctx.addArc(center: center, radius: glyphR * 0.80,
+           startAngle: CGFloat(30 * Double.pi / 180),
+           endAngle: CGFloat(-195 * Double.pi / 180),
+           clockwise: true)
+ctx.strokePath()
+
+// Eco interior (115°→215° en pantalla)
+ctx.setLineWidth(glyphR * 0.18)
+ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.55).cgColor)
+ctx.addArc(center: center, radius: glyphR * 0.38,
+           startAngle: CGFloat(-115 * Double.pi / 180),
+           endAngle: CGFloat(-215 * Double.pi / 180),
+           clockwise: true)
+ctx.strokePath()
+
+// Punto cometa (-62° en pantalla → +62° aquí)
+let dotAngle = CGFloat(62 * Double.pi / 180)
+let dotCenter = CGPoint(x: center.x + cos(dotAngle) * glyphR * 0.80,
+                        y: center.y + sin(dotAngle) * glyphR * 0.80)
+let dotR = glyphR * 0.17
+ctx.setFillColor(NSColor.white.cgColor)
+ctx.fillEllipse(in: CGRect(x: dotCenter.x - dotR, y: dotCenter.y - dotR,
+                           width: dotR * 2, height: dotR * 2))
+ctx.restoreGState()
 
 image.unlockFocus()
 

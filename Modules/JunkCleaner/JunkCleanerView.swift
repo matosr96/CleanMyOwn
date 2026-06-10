@@ -114,7 +114,7 @@ struct JunkCleanerView: View {
                     Circle().fill(Theme.success.opacity(0.08))
                         .frame(width: 150, height: 150)
                         .blur(radius: 20)
-                    Image(systemName: "sparkles")
+                    Image(systemName: "checkmark.seal.fill")
                         .font(.system(size: 50, weight: .bold))
                         .foregroundStyle(Theme.success)
                         .symbolEffect(.bounce, value: confettiTrigger)
@@ -400,7 +400,7 @@ struct JunkCleanerView: View {
 
     private var emptyState: some View {
         EmptyStateView(
-            icon: "sparkles",
+            icon: "magnifyingglass",
             tint: Theme.success,
             title: "Listo para escanear",
             subtitle: "Pulsa «Escanear» para revisar archivos temporales, registros y papelera.\nNada se borra hasta que tú lo confirmes."

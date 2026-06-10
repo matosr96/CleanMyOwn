@@ -74,15 +74,8 @@ struct OnboardingView: View {
     private var welcomeSlide: some View {
         VStack(spacing: 18) {
             Spacer()
-            ZStack {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Theme.brandGradient)
-                    .frame(width: 92, height: 92)
-                Image(systemName: "sparkles")
-                    .font(.system(size: 44, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-            .shadow(color: Theme.accent.opacity(0.4), radius: 20, y: 6)
+            BrandMark(size: 92)
+                .shadow(color: Theme.accent.opacity(0.4), radius: 20, y: 6)
             Text("Bienvenido a CleanMyOwn")
                 .font(.displayMedium).foregroundStyle(Theme.textPrimary)
             Text("Configura DOS permisos una sola vez y la app funcionará\npara siempre, sin contraseñas ni interrupciones.")
@@ -310,7 +303,7 @@ struct OnboardingView: View {
                     }
                 }
             } else {
-                actionButton(label: "Empezar", icon: "sparkles") { finish() }
+                actionButton(label: "Empezar", icon: "arrow.right") { finish() }
             }
         }
     }

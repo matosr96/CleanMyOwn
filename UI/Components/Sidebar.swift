@@ -2,10 +2,10 @@
 //  Sidebar.swift
 //  CleanMyOwn
 //
-//  Barra lateral con navegación entre módulos. Hero del logo con halo 3D,
-//  chips de color permanentes por módulo, highlight de selección que se
-//  DESLIZA entre items (matchedGeometryEffect), tilt 3D al hover y footer
-//  con pills de estado.
+//  Barra lateral sobria y nativa: header compacto con la marca, items de
+//  UNA línea con chip de color, highlight de selección que se desliza
+//  (matchedGeometryEffect) y footer de estado minimal. Las animaciones
+//  viven en los detalles, no en el ruido.
 //
 
 import SwiftUI
@@ -43,7 +43,7 @@ enum AppModule: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Subtítulo bajo el nombre del módulo — lenguaje para cualquier usuario.
+    /// Descripción corta — la usan las cabeceras de cada módulo.
     var subtitle: String {
         switch self {
         case .dashboard:    return "Estado de tu Mac"
@@ -61,17 +61,13 @@ struct Sidebar: View {
     @EnvironmentObject private var permissions: PermissionsMonitor
     @EnvironmentObject private var admin: AdminSessionService
 
-    @State private var logoRotation: Double = -10
-    @State private var logoGlow: Double = 0.4
-    /// Namespace del highlight de selección: el fondo y el indicador lateral
-    /// se DESLIZAN de un item a otro en vez de aparecer/desaparecer.
     @Namespace private var selectionNamespace
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            heroBlock
-            sectionLabel("MÓDULOS")
-            VStack(alignment: .leading, spacing: 6) {
+            brandRow
+
+            VStack(alignment: .leading, spacing: 2) {
                 ForEach(AppModule.allCases) { module in
                     SidebarItem(
                         module: module,
@@ -85,143 +81,81 @@ struct Sidebar: View {
                     )
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 10)
 
             Spacer()
 
             footer
         }
-        .frame(width: 260)
+        .frame(width: 224)
         .background(
             ZStack {
                 Theme.sidebar
                 LinearGradient(
-                    colors: [Color.white.opacity(0.04), .clear],
+                    colors: [Color.white.opacity(0.03), .clear],
                     startPoint: .top, endPoint: .bottom
                 )
             }
         )
         .overlay(alignment: .trailing) {
-            // Borde derecho sutil con glow
             Rectangle()
-                .fill(LinearGradient(
-                    colors: [Theme.accent.opacity(0.20), .clear, Color(red: 0.85, green: 0.50, blue: 1.0).opacity(0.15)],
-                    startPoint: .top, endPoint: .bottom
-                ))
+                .fill(Color.white.opacity(0.06))
                 .frame(width: 1)
         }
     }
 
-    // MARK: - Hero (logo + nombre)
+    // MARK: - Marca (compacta, sin hero)
 
-    private var heroBlock: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ZStack {
-                // Glow externo
-                Circle()
-                    .fill(Theme.accent)
-                    .frame(width: 76, height: 76)
-                    .blur(radius: 32)
-                    .opacity(logoGlow * 0.9)
-                Circle()
-                    .fill(Color(red: 0.85, green: 0.50, blue: 1.0))
-                    .frame(width: 56, height: 56)
-                    .blur(radius: 26)
-                    .opacity(logoGlow * 0.7)
-                // Logo
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Theme.brandGradient)
-                    .frame(width: 56, height: 56)
-                    .shadow(color: Theme.accent.opacity(0.5), radius: 12, y: 4)
-                Image(systemName: "sparkles")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-            .rotation3DEffect(.degrees(logoRotation),
-                              axis: (x: 0.4, y: 1, z: 0.2),
-                              perspective: 0.6)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 4).repeatForever(autoreverses: true)) {
-                    logoRotation = 12
-                }
-                withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) {
-                    logoGlow = 0.95
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("CleanMyOwn")
-                    .font(.system(size: 24, weight: .black, design: .rounded))
-                    .foregroundStyle(Theme.textPrimary)
-                Text("Tu Mac, como nuevo.")
-                    .font(.bodySmall)
-                    .foregroundStyle(Theme.textTertiary)
-            }
+    private var brandRow: some View {
+        HStack(spacing: 10) {
+            BrandMark(size: 30)
+                .shadow(color: Theme.accent.opacity(0.35), radius: 8, y: 2)
+            Text("CleanMyOwn")
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(Theme.textPrimary)
+            Spacer()
         }
         .padding(.horizontal, 18)
-        .padding(.top, 24)
-        .padding(.bottom, 22)
-    }
-
-    // MARK: - Section label
-
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.label)
-            .foregroundStyle(Theme.textTertiary)
-            .padding(.horizontal, 22)
-            .padding(.bottom, 8)
-    }
-
-    // MARK: - Footer con status pills
-
-    private var footer: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionLabel("ESTADO")
-            statusPill(
-                icon: permissions.hasFullDiskAccess ? "checkmark.shield.fill" : "exclamationmark.shield.fill",
-                text: permissions.hasFullDiskAccess ? "Acceso total al disco" : "Acceso al disco parcial",
-                tint: permissions.hasFullDiskAccess ? Theme.success : Theme.warning
-            )
-            statusPill(
-                icon: admin.helperEnabled ? "bolt.shield.fill"
-                    : (admin.helperStatus == .requiresApproval ? "hourglass" : "bolt.shield"),
-                text: admin.helperEnabled ? "Asistente activo"
-                    : (admin.helperStatus == .requiresApproval ? "Asistente pendiente" : "Asistente no instalado"),
-                tint: admin.helperEnabled ? Theme.success
-                    : (admin.helperStatus == .requiresApproval ? Theme.warning : Theme.textTertiary)
-            )
-            HStack {
-                Text("v1.0").font(.bodySmall).foregroundStyle(Theme.textTertiary)
-                Spacer()
-                Text("matosr96").font(.bodySmall).foregroundStyle(Theme.textTertiary)
-            }
-            .padding(.horizontal, 22)
-            .padding(.top, 4)
-        }
+        .padding(.top, 22)
         .padding(.bottom, 18)
     }
 
-    private func statusPill(icon: String, text: String, tint: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(tint)
-            Text(text)
-                .font(.bodySmall)
-                .foregroundStyle(Theme.textSecondary)
-            Spacer(minLength: 0)
+    // MARK: - Footer de estado, sin cajas
+
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            statusRow(
+                ok: permissions.hasFullDiskAccess,
+                text: permissions.hasFullDiskAccess ? "Acceso total al disco" : "Acceso al disco parcial"
+            )
+            statusRow(
+                ok: admin.helperEnabled,
+                pending: admin.helperStatus == .requiresApproval,
+                text: admin.helperEnabled ? "Asistente activo"
+                    : (admin.helperStatus == .requiresApproval ? "Asistente pendiente" : "Asistente no instalado")
+            )
+            HStack {
+                Text("v1.0").font(.system(size: 10.5, design: .rounded))
+                Spacer()
+                Text("matosr96").font(.system(size: 10.5, design: .rounded))
+            }
+            .foregroundStyle(Theme.textTertiary.opacity(0.7))
+            .padding(.top, 6)
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(tint.opacity(0.10))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(tint.opacity(0.22), lineWidth: 1)
-        )
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 18)
+        .padding(.bottom, 16)
+    }
+
+    private func statusRow(ok: Bool, pending: Bool = false, text: String) -> some View {
+        HStack(spacing: 7) {
+            Circle()
+                .fill(ok ? Theme.success : (pending ? Theme.warning : Theme.textTertiary.opacity(0.5)))
+                .frame(width: 6, height: 6)
+                .shadow(color: ok ? Theme.success.opacity(0.6) : .clear, radius: 3)
+            Text(text)
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(Theme.textTertiary)
+        }
     }
 }
 
@@ -235,72 +169,51 @@ private struct SidebarItem: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                // Indicador lateral — viaja entre items con la selección
-                ZStack {
-                    if isSelected {
-                        Capsule()
-                            .fill(module.accentColor)
-                            .frame(width: 4, height: 32)
-                            .shadow(color: module.accentColor.opacity(0.6), radius: 6)
-                            .matchedGeometryEffect(id: "sidebar.indicator", in: namespace)
-                    }
-                }
-                .frame(width: 4)
-
-                // Chip SIEMPRE en color: gradiente lleno al seleccionar,
+            HStack(spacing: 10) {
+                // Chip de color compacto: gradiente lleno al seleccionar,
                 // tinte suave en reposo.
                 ZStack {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(isSelected
                               ? AnyShapeStyle(LinearGradient(
                                     colors: [module.accentColor, module.accentColor.opacity(0.62)],
                                     startPoint: .topLeading, endPoint: .bottomTrailing))
-                              : AnyShapeStyle(module.accentColor.opacity(hovering ? 0.26 : 0.16)))
-                        .frame(width: 36, height: 36)
+                              : AnyShapeStyle(module.accentColor.opacity(hovering ? 0.24 : 0.14)))
+                        .frame(width: 27, height: 27)
                     Image(systemName: module.icon)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(isSelected ? .white : module.accentColor)
-                        .frame(width: 36, height: 36)
                         .symbolEffect(.bounce, value: isSelected)
                 }
-                .shadow(color: module.accentColor.opacity(isSelected ? 0.45 : 0),
-                        radius: 8, y: 2)
+                .shadow(color: module.accentColor.opacity(isSelected ? 0.40 : 0),
+                        radius: 6, y: 2)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(module.rawValue)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(isSelected ? Theme.textPrimary : Theme.textSecondary)
-                    Text(module.subtitle)
-                        .font(.system(size: 10.5, design: .rounded))
-                        .foregroundStyle(Theme.textTertiary)
-                }
+                Text(module.rawValue)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .medium, design: .rounded))
+                    .foregroundStyle(isSelected ? Theme.textPrimary : Theme.textSecondary)
+
                 Spacer()
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 7)
+            .padding(.vertical, 6)
             .background {
                 // Highlight que se DESLIZA al item seleccionado
                 if isSelected {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.white.opacity(0.06))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(module.accentColor.opacity(0.22), lineWidth: 1)
-                        )
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Color.white.opacity(0.07))
                         .matchedGeometryEffect(id: "sidebar.selection", in: namespace)
                 } else if hovering {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
                         .fill(Color.white.opacity(0.03))
                 }
             }
-            // Tilt 3D sutil al hover, como si el item se inclinara hacia ti
+            // Tilt 3D sutil al hover
             .rotation3DEffect(
-                .degrees(hovering && !isSelected ? 3 : 0),
+                .degrees(hovering && !isSelected ? 2.5 : 0),
                 axis: (x: 0.35, y: -1, z: 0),
                 perspective: 0.7
             )
-            .scaleEffect(hovering && !isSelected ? 1.015 : 1.0)
+            .scaleEffect(hovering && !isSelected ? 1.01 : 1.0)
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
