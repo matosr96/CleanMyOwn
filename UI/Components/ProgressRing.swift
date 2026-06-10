@@ -24,6 +24,9 @@ struct ProgressRing: View {
     var size: CGFloat = 160
     /// Color del glow detrás del anillo (suele coincidir con el gradient).
     var glowColor: Color = Theme.accent
+    /// Fuente del label central — pásala proporcional al `size` (el default
+    /// de 32pt sólo funciona bien en anillos grandes).
+    var labelFont: Font = .displayMedium
 
     @State private var animatedProgress: Double = 0
     @State private var breath: CGFloat = 0.7
@@ -52,14 +55,16 @@ struct ProgressRing: View {
                 .animation(.spring(response: 1.2, dampingFraction: 0.8), value: animatedProgress)
 
             // Textos centrales
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 Text(label)
-                    .font(.displayMedium)
+                    .font(labelFont)
                     .foregroundStyle(Theme.textPrimary)
                     .contentTransition(.numericText())
-                Text(sublabel)
-                    .font(.bodySmall)
-                    .foregroundStyle(Theme.textSecondary)
+                if !sublabel.isEmpty {
+                    Text(sublabel)
+                        .font(.bodySmall)
+                        .foregroundStyle(Theme.textSecondary)
+                }
             }
         }
         .frame(width: size, height: size)

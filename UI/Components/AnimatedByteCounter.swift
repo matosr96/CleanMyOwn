@@ -18,8 +18,17 @@ struct AnimatedByteCounter: View {
     @State private var displayed: Double = 0
     @State private var animating = false
 
+    /// Sin formato no-numérico: "0 KB" en vez del "Zero KB" en inglés que
+    /// produce ByteCountFormatter por defecto.
+    private static let formatter: ByteCountFormatter = {
+        let f = ByteCountFormatter()
+        f.countStyle = .file
+        f.allowsNonnumericFormatting = false
+        return f
+    }()
+
     var body: some View {
-        Text(Int64(displayed).formattedAsBytes)
+        Text(Self.formatter.string(fromByteCount: Int64(displayed)))
             .font(font)
             .foregroundStyle(color)
             .monospacedDigit()
