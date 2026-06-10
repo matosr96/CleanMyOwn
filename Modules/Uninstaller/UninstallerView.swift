@@ -4,7 +4,11 @@
 //
 //  Lista de apps instaladas, con búsqueda. Al seleccionar una app se buscan
 //  sus archivos asociados (Application Support, Caches, Preferences, etc.) y
-//  el usuario puede elegir qué incluir en el desinstalado (todo va a Papelera).
+//  el usuario elige qué incluir. El borrado es PERMANENTE (no pasa por la
+//  Papelera) y se confirma con un alert destructivo.
+//
+//  Los matches por bundle ID vienen preseleccionados; los matches por nombre
+//  (heurística con riesgo de colisión) se muestran sin marcar.
 //
 
 import AppKit
@@ -12,7 +16,7 @@ import SwiftUI
 
 struct UninstallerView: View {
     @StateObject private var catalog = AppCatalogService()
-    @StateObject private var admin = AdminSessionService()
+    @EnvironmentObject private var admin: AdminSessionService
     @State private var query: String = ""
     @State private var selectedAppID: String?
     @State private var selectedApp: AppEntry?
@@ -48,7 +52,6 @@ struct UninstallerView: View {
         .onAppear {
             if catalog.apps.isEmpty { catalog.reload() }
         }
-        .onDisappear { admin.deactivate() }
         .alert("¿Desinstalar \(selectedApp?.name ?? "") permanentemente?", isPresented: $showingConfirm) {
             Button("Cancelar", role: .cancel) {}
             Button("Eliminar permanentemente", role: .destructive) {
@@ -252,6 +255,14 @@ struct UninstallerView: View {
                                     .padding(.horizontal, 8).padding(.vertical, 3)
                                     .background(Capsule().fill(Theme.warning.opacity(0.12)))
 
+                                if item.isNameMatch {
+                                    Text("POR NOMBRE")
+                                        .font(.label).foregroundStyle(Theme.textTertiary)
+                                        .padding(.horizontal, 6).padding(.vertical, 3)
+                                        .background(Capsule().fill(Color.white.opacity(0.06)))
+                                        .help("Coincide sólo por el nombre de la app — puede pertenecer a otra. Revisa la ruta antes de marcarlo.")
+                                }
+
                                 Text(item.url.path).font(.bodySmall)
                                     .foregroundStyle(Theme.textSecondary)
                                     .lineLimit(1).truncationMode(.middle)
@@ -306,7 +317,9 @@ struct UninstallerView: View {
             let items = await catalog.findAssociatedFiles(for: app)
             await MainActor.run {
                 self.associated = items
-                self.assocSelection = Set(items.map(\.id))
+                // Sólo se preseleccionan los matches por bundle ID; los de
+                // nombre los revisa y marca el usuario.
+                self.assocSelection = Set(items.filter { !$0.isNameMatch }.map(\.id))
                 self.loadingAssoc = false
             }
         }
@@ -409,5 +422,7 @@ private struct AppRow: View {
 }
 
 #Preview {
-    UninstallerView().frame(width: 1000, height: 700)
+    UninstallerView()
+        .environmentObject(AdminSessionService())
+        .frame(width: 1000, height: 700)
 }

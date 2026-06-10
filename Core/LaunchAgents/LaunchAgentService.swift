@@ -79,10 +79,10 @@ final class LaunchAgentService: ObservableObject {
         let disabledPath = agent.plistURL.path + ".disabled"
         do {
             // Descargar primero (best-effort)
-            _ = await Self.runShell("/bin/launchctl", ["bootout", "gui/\(getuid())/\(agent.label)"])
+            _ = await ShellRunner.run("/bin/launchctl", ["bootout", "gui/\(getuid())/\(agent.label)"])
             // Renombrar
             try fm.moveItem(atPath: agent.plistURL.path, toPath: disabledPath)
-            await refreshOne(at: URL(fileURLWithPath: disabledPath), originalLabel: agent.label)
+            await rescan()
             return nil
         } catch {
             return "No se pudo deshabilitar: \(error.localizedDescription)"
@@ -100,18 +100,19 @@ final class LaunchAgentService: ObservableObject {
                 try fm.moveItem(atPath: agent.plistURL.path, toPath: originalPath)
             }
             // Cargar
-            let result = await Self.runShell("/bin/launchctl", ["bootstrap", "gui/\(getuid())", originalPath])
+            let result = await ShellRunner.run("/bin/launchctl", ["bootstrap", "gui/\(getuid())", originalPath])
             if result.exitCode != 0 {
                 // No es fatal: el job puede ya estar cargado
             }
-            await refreshOne(at: URL(fileURLWithPath: originalPath), originalLabel: agent.label)
+            await rescan()
             return nil
         } catch {
             return "No se pudo habilitar: \(error.localizedDescription)"
         }
     }
 
-    private func refreshOne(at url: URL, originalLabel: String) async {
+    /// Re-escanea todo y reemplaza la lista (los renames invalidan ids/paths).
+    private func rescan() async {
         let updated = await Task.detached(priority: .userInitiated) {
             Self.scanAll()
         }.value
@@ -149,7 +150,7 @@ final class LaunchAgentService: ObservableObject {
         return found
     }
 
-    nonisolated private static func parsePlist(at url: URL, scope: LaunchAgentScope, loadedLabels: Set<String>, isDisabled: Bool) -> LaunchAgent? {
+    nonisolated static func parsePlist(at url: URL, scope: LaunchAgentScope, loadedLabels: Set<String>, isDisabled: Bool) -> LaunchAgent? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         guard let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] else {
             return nil
@@ -180,11 +181,15 @@ final class LaunchAgentService: ObservableObject {
     }
 
     nonisolated private static func currentlyLoadedLabels() -> Set<String> {
-        // `launchctl list` produce: PID Status Label
-        let result = runShellSync("/bin/launchctl", ["list"])
+        let result = ShellRunner.runSync("/bin/launchctl", ["list"])
         guard result.exitCode == 0 else { return [] }
+        return parseLoadedLabels(from: result.stdout)
+    }
+
+    /// `launchctl list` produce líneas: PID\tStatus\tLabel
+    nonisolated static func parseLoadedLabels(from stdout: String) -> Set<String> {
         var set = Set<String>()
-        for line in result.stdout.split(separator: "\n") {
+        for line in stdout.split(separator: "\n") {
             let cols = line.split(separator: "\t", omittingEmptySubsequences: false)
             guard cols.count >= 3 else { continue }
             set.insert(String(cols[2]))
@@ -192,33 +197,4 @@ final class LaunchAgentService: ObservableObject {
         return set
     }
 
-    // MARK: - Shell helper
-
-    struct ShellResult { let exitCode: Int32; let stdout: String; let stderr: String }
-
-    nonisolated private static func runShellSync(_ launchPath: String, _ args: [String]) -> ShellResult {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: launchPath)
-        process.arguments = args
-        let outPipe = Pipe(); let errPipe = Pipe()
-        process.standardOutput = outPipe
-        process.standardError = errPipe
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            return ShellResult(exitCode: -1, stdout: "", stderr: error.localizedDescription)
-        }
-        let outData = (try? outPipe.fileHandleForReading.readToEnd()) ?? Data()
-        let errData = (try? errPipe.fileHandleForReading.readToEnd()) ?? Data()
-        return ShellResult(
-            exitCode: process.terminationStatus,
-            stdout: String(data: outData, encoding: .utf8) ?? "",
-            stderr: String(data: errData, encoding: .utf8) ?? ""
-        )
-    }
-
-    nonisolated private static func runShell(_ launchPath: String, _ args: [String]) async -> ShellResult {
-        await Task.detached(priority: .userInitiated) { runShellSync(launchPath, args) }.value
-    }
 }

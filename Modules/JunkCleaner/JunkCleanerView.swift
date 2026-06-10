@@ -3,20 +3,20 @@
 //  CleanMyOwn
 //
 //  UI del Limpiador: dispara el escaneo, muestra resultados por categoría
-//  con selección granular, y permite mover lo seleccionado a la Papelera.
+//  con selección granular, y borra PERMANENTEMENTE lo seleccionado tras un
+//  alert de confirmación destructivo (no pasa por la Papelera).
 //
 
 import SwiftUI
 
 struct JunkCleanerView: View {
     @StateObject private var service = JunkScanService()
-    @StateObject private var admin = AdminSessionService()
+    @EnvironmentObject private var admin: AdminSessionService
     @State private var expanded: Set<String> = []
     @State private var showingConfirm = false
     @State private var isCleaning = false
     @State private var showingResult = false
     @State private var resultMessage = ""
-    @State private var resultIsSuccess = true
     @EnvironmentObject private var permissions: PermissionsMonitor
 
     // Hero moment al completar limpieza exitosa
@@ -65,7 +65,6 @@ struct JunkCleanerView: View {
                     .zIndex(10)
             }
         }
-        .onDisappear { admin.deactivate() }
         .alert("¿Eliminar \(service.selectedBytes.formattedAsBytes) permanentemente?",
                isPresented: $showingConfirm) {
             Button("Cancelar", role: .cancel) { }
@@ -581,5 +580,8 @@ struct CheckboxToggleStyle: ToggleStyle {
 }
 
 #Preview {
-    JunkCleanerView().frame(width: 900, height: 700)
+    JunkCleanerView()
+        .environmentObject(PermissionsMonitor.shared)
+        .environmentObject(AdminSessionService())
+        .frame(width: 900, height: 700)
 }

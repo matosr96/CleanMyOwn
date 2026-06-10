@@ -284,7 +284,7 @@ struct DashboardView: View {
                     icon: "cpu",
                     title: "PROCESADOR",
                     value: "\(Int(systemInfo.snapshot?.cpuUsagePercent ?? 0))% activo",
-                    subtitle: "promedio del sistema",
+                    subtitle: "uso actual del sistema",
                     accentColor: Color(red: 0.85, green: 0.50, blue: 1.0)
                 )
             }

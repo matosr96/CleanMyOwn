@@ -60,24 +60,35 @@ final class LargeFilesService: ObservableObject {
     var totalBytes: Int64 { files.reduce(0) { $0 + $1.sizeBytes } }
     var totalWastedBytes: Int64 { duplicates.reduce(0) { $0 + $1.wastedBytes } }
 
+    // Los `Task.detached` no heredan la cancelación del task que los espera:
+    // hay que guardar sus handles y cancelarlos explícitamente. Las escrituras
+    // de estado van protegidas con `Task.isCancelled` para que un escaneo
+    // viejo que termina tarde no pise los resultados del nuevo.
     private var scanTask: Task<Void, Never>?
+    private var scanWork: Task<[LargeFile], Never>?
+    private var hashTask: Task<Void, Never>?
+    private var hashWork: Task<[DuplicateGroup], Never>?
 
     func startScan() {
-        scanTask?.cancel()
+        scanTask?.cancel(); scanWork?.cancel()
+        hashTask?.cancel(); hashWork?.cancel()
         files = []
         duplicates = []
         selection = []
         isScanning = true
+        isHashing = false
         progressLabel = "Iniciando escaneo…"
 
         let root = rootURL
         let threshold = minSizeBytes
 
+        let work = Task.detached(priority: .userInitiated) {
+            Self.scan(root: root, minBytes: threshold)
+        }
+        scanWork = work
         scanTask = Task { [weak self] in
-            guard let self else { return }
-            let scanned = await Task.detached(priority: .userInitiated) {
-                Self.scan(root: root, minBytes: threshold)
-            }.value
+            let scanned = await work.value
+            guard let self, !Task.isCancelled else { return }
             self.files = scanned.sorted { $0.sizeBytes > $1.sizeBytes }
             self.selection = []
             self.isScanning = false
@@ -87,15 +98,18 @@ final class LargeFilesService: ObservableObject {
 
     func computeDuplicates() {
         guard !files.isEmpty else { return }
+        hashTask?.cancel(); hashWork?.cancel()
         isHashing = true
         progressLabel = "Calculando duplicados…"
         let snapshot = files
 
-        Task { [weak self] in
-            guard let self else { return }
-            let groups = await Task.detached(priority: .userInitiated) {
-                Self.findDuplicates(among: snapshot)
-            }.value
+        let work = Task.detached(priority: .userInitiated) {
+            Self.findDuplicates(among: snapshot)
+        }
+        hashWork = work
+        hashTask = Task { [weak self] in
+            let groups = await work.value
+            guard let self, !Task.isCancelled else { return }
             self.duplicates = groups.sorted { $0.wastedBytes > $1.wastedBytes }
             self.isHashing = false
             self.progressLabel = "\(groups.count) grupos de duplicados"
@@ -157,6 +171,7 @@ final class LargeFilesService: ObservableObject {
 
         var found: [LargeFile] = []
         for case let u as URL in en {
+            if Task.isCancelled { return found }
             // Saltar paths del sistema dentro del home (ya raros, pero por si acaso)
             if u.path.contains("/.Trash/") { continue }
             let v = try? u.resourceValues(forKeys: Set(keys))
@@ -188,14 +203,16 @@ final class LargeFilesService: ObservableObject {
         return found
     }
 
+    /// Tamaño real de un paquete (.app etc.) contando también lo oculto:
+    /// si se borra, se borra completo.
     nonisolated private static func directorySize(at url: URL) -> Int64 {
         let fm = FileManager.default
         let keys: [URLResourceKey] = [.isDirectoryKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
         guard let en = fm.enumerator(at: url, includingPropertiesForKeys: keys,
-                                     options: [.skipsHiddenFiles],
                                      errorHandler: { _, _ in true }) else { return 0 }
         var total: Int64 = 0
         for case let u as URL in en {
+            if Task.isCancelled { return total }
             let v = try? u.resourceValues(forKeys: Set(keys))
             if v?.isDirectory == true { continue }
             total += Int64(v?.totalFileAllocatedSize ?? v?.fileAllocatedSize ?? 0)
@@ -203,7 +220,7 @@ final class LargeFilesService: ObservableObject {
         return total
     }
 
-    nonisolated private static func findDuplicates(among files: [LargeFile]) -> [DuplicateGroup] {
+    nonisolated static func findDuplicates(among files: [LargeFile]) -> [DuplicateGroup] {
         // Agrupar por size
         var bySize: [Int64: [LargeFile]] = [:]
         for f in files where !f.isDirectory {
@@ -211,6 +228,7 @@ final class LargeFilesService: ObservableObject {
         }
         var groups: [DuplicateGroup] = []
         for (_, candidates) in bySize where candidates.count >= 2 {
+            if Task.isCancelled { return groups }
             // Quick hash (primeros 1 MB)
             var byQuick: [String: [LargeFile]] = [:]
             for f in candidates {
@@ -246,6 +264,7 @@ final class LargeFilesService: ObservableObject {
         defer { try? handle.close() }
         var hasher = SHA256()
         while true {
+            if Task.isCancelled { return nil }
             let chunk = (try? handle.read(upToCount: 4 * 1024 * 1024)) ?? Data()
             if chunk.isEmpty { break }
             hasher.update(data: chunk)

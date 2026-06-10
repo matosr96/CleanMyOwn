@@ -11,7 +11,8 @@ CONFIG="${CONFIG:-release}"
 echo "==> Compilando ($CONFIG)..."
 swift build -c "$CONFIG"
 
-BIN_PATH=".build/arm64-apple-macosx/$CONFIG/$BIN_NAME"
+# --show-bin-path resuelve la triple de la máquina (arm64 o x86_64)
+BIN_PATH="$(swift build -c "$CONFIG" --show-bin-path)/$BIN_NAME"
 if [[ ! -x "$BIN_PATH" ]]; then
     echo "ERROR: binario no encontrado en $BIN_PATH" >&2
     exit 1
@@ -39,8 +40,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSPrincipalClass</key><string>NSApplication</string>
-    <key>NSSupportsAutomaticTermination</key><true/>
-    <key>NSSupportsSuddenTermination</key><true/>
+    <!-- Sin sudden/automatic termination: macOS podría matar la app en mitad
+         de un borrado o una operación privilegiada al cerrar sesión. -->
 </dict>
 </plist>
 PLIST

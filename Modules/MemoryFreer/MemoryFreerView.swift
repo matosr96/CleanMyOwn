@@ -10,6 +10,7 @@ import SwiftUI
 
 struct MemoryFreerView: View {
     @StateObject private var service = MemoryService()
+    @EnvironmentObject private var admin: AdminSessionService
     @State private var showResult = false
 
     var body: some View {
@@ -46,7 +47,7 @@ struct MemoryFreerView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("MEMORIA").font(.label).foregroundStyle(Theme.textTertiary)
             Text("Liberar RAM").font(.displayMedium).foregroundStyle(Theme.textPrimary)
-            Text("Ejecuta `purge` para liberar memoria inactiva y comprimida. Requiere autorización del administrador.")
+            Text("Ejecuta `purge` para liberar memoria inactiva y comprimida. Usa la sesión de administrador compartida: la contraseña se pide una sola vez.")
                 .font(.bodyMedium).foregroundStyle(Theme.textSecondary)
         }
     }
@@ -150,7 +151,7 @@ struct MemoryFreerView: View {
     }
 
     private func runPurge() async {
-        await service.purge()
+        await service.purge(adminSession: admin)
         if service.lastError == nil {
             showResult = true
         }
@@ -158,5 +159,7 @@ struct MemoryFreerView: View {
 }
 
 #Preview {
-    MemoryFreerView().frame(width: 1000, height: 700)
+    MemoryFreerView()
+        .environmentObject(AdminSessionService())
+        .frame(width: 1000, height: 700)
 }

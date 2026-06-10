@@ -2,8 +2,9 @@
 //  MemoryService.swift
 //  CleanMyOwn
 //
-//  Lectura detallada de la memoria física e invocación de `purge` con
-//  privilegios administrativos para liberar páginas inactivas/comprimidas.
+//  Lectura detallada de la memoria física e invocación de `purge` a través
+//  de la sesión admin compartida (AdminSessionService) para liberar páginas
+//  inactivas/comprimidas sin pedir la contraseña en cada uso.
 //
 
 import Foundation
@@ -11,14 +12,15 @@ import SwiftUI
 
 struct MemoryStats {
     let totalBytes: UInt64
-    let appBytes: UInt64        // active + wired (procesos)
+    let appBytes: UInt64        // active - purgeable (memoria de procesos)
     let wiredBytes: UInt64
     let compressedBytes: UInt64
     let cachedBytes: UInt64     // file-backed inactive + speculative + purgeable
     let freeBytes: UInt64
 
-    var usedBytes: UInt64 { appBytes + compressedBytes + wiredBytes - wiredBytes /* avoid double */ }
-    /// Memoria considerada "presionada" para Activity Monitor: app + wired + compressed
+    /// Memoria "usada" como la reporta Activity Monitor: app + wired + comprimida.
+    var usedBytes: UInt64 { appBytes + wiredBytes + compressedBytes }
+    /// Memoria considerada "presionada" para Activity Monitor: app + compressed
     var pressureBytes: UInt64 { appBytes + compressedBytes }
     var pressureFraction: Double {
         guard totalBytes > 0 else { return 0 }
@@ -50,33 +52,36 @@ final class MemoryService: ObservableObject {
         ticker = nil
     }
 
-    /// Ejecuta `sudo purge` solicitando privilegios al usuario vía AppleScript.
-    /// Devuelve los bytes liberados (puede ser negativo si las apps aprovechan inmediatamente).
-    func purge() async {
+    /// Ejecuta `purge` como root vía la sesión admin compartida (la activa si
+    /// hace falta — un único prompt nativo por sesión). osascript NO sirve
+    /// aquí: cada invocación crea su propio AuthorizationRef y volvería a
+    /// pedir la contraseña aunque la sesión admin esté activa.
+    func purge(adminSession: AdminSessionService) async {
         guard !isPurging else { return }
         isPurging = true
         lastError = nil
 
         let before = Self.capture()
 
-        let script = "do shell script \"/usr/sbin/purge\" with administrator privileges"
-        let result = await Task.detached(priority: .userInitiated) {
-            Self.runOSAScript(script)
-        }.value
+        if !adminSession.isActive {
+            let ok = await adminSession.activate()
+            guard ok else {
+                lastError = adminSession.lastError ?? "Autorización cancelada o sin permisos."
+                isPurging = false
+                return
+            }
+        }
+        let result = await adminSession.runPrivileged("/usr/sbin/purge", [])
 
         // Esperar un poco a que el sistema reorganice
         try? await Task.sleep(nanoseconds: 800_000_000)
         let after = Self.capture()
 
-        if result.exitCode == 0 {
-            let beforeUsed = Int64(before.appBytes + before.compressedBytes + before.wiredBytes)
-            let afterUsed = Int64(after.appBytes + after.compressedBytes + after.wiredBytes)
-            lastFreedBytes = max(0, beforeUsed - afterUsed)
+        if result.success {
+            lastFreedBytes = max(0, Int64(before.usedBytes) - Int64(after.usedBytes))
             stats = after
         } else {
-            // Errores típicos: el usuario canceló (1) o password incorrecta
-            let msg = result.stderr.isEmpty ? "Operación cancelada o sin permisos." : result.stderr
-            lastError = msg
+            lastError = result.output.isEmpty ? "No se pudo ejecutar purge." : result.output
         }
         isPurging = false
     }
@@ -88,6 +93,7 @@ final class MemoryService: ObservableObject {
         var stats = vm_statistics64()
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64_data_t>.size / MemoryLayout<integer_t>.size)
         let host = mach_host_self()
+        defer { mach_port_deallocate(mach_task_self_, host) }
         let result: kern_return_t = withUnsafeMutablePointer(to: &stats) { ptr in
             ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { rebound in
                 host_statistics64(host, HOST_VM_INFO64, rebound, &count)
@@ -119,29 +125,4 @@ final class MemoryService: ObservableObject {
         )
     }
 
-    // MARK: - osascript helper
-
-    struct OSAResult { let exitCode: Int32; let stdout: String; let stderr: String }
-
-    nonisolated private static func runOSAScript(_ script: String) -> OSAResult {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", script]
-        let outPipe = Pipe(); let errPipe = Pipe()
-        process.standardOutput = outPipe
-        process.standardError = errPipe
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            return OSAResult(exitCode: -1, stdout: "", stderr: error.localizedDescription)
-        }
-        let outData = (try? outPipe.fileHandleForReading.readToEnd()) ?? Data()
-        let errData = (try? errPipe.fileHandleForReading.readToEnd()) ?? Data()
-        return OSAResult(
-            exitCode: process.terminationStatus,
-            stdout: String(data: outData, encoding: .utf8) ?? "",
-            stderr: String(data: errData, encoding: .utf8) ?? ""
-        )
-    }
 }

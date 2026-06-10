@@ -15,7 +15,8 @@ struct LargeFilesView: View {
     @State private var showingConfirm = false
     @State private var isDeleting = false
     @State private var showingResult = false
-    @State private var lastFreed: Int64 = 0
+    @State private var resultMessage = ""
+    @State private var resultHadErrors = false
 
     enum Tab { case large, dupes }
 
@@ -37,10 +38,11 @@ struct LargeFilesView: View {
         } message: {
             Text("Los archivos se borrarán de forma permanente del disco. Esta acción NO se puede deshacer.")
         }
-        .alert("Limpieza completada", isPresented: $showingResult) {
+        .alert(resultHadErrors ? "Limpieza con errores" : "Limpieza completada",
+               isPresented: $showingResult) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Se liberaron \(lastFreed.formattedAsBytes).")
+            Text(resultMessage)
         }
     }
 
@@ -244,8 +246,15 @@ struct LargeFilesView: View {
 
     private func runDelete() async {
         isDeleting = true
-        lastFreed = await service.deleteSelected()
+        let freed = await service.deleteSelected()
         isDeleting = false
+        if let err = service.lastError {
+            resultHadErrors = true
+            resultMessage = "Se liberaron \(freed.formattedAsBytes), pero hubo errores:\n\n\(err)"
+        } else {
+            resultHadErrors = false
+            resultMessage = "Se liberaron \(freed.formattedAsBytes)."
+        }
         showingResult = true
     }
 }

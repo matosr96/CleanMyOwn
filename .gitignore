@@ -20,3 +20,6 @@ CleanMyOwn.app/
 .vscode/
 *.swp
 *~
+
+# Claude Code local
+.claude/

@@ -4,9 +4,12 @@
 //
 //  Lista las apps instaladas en /Applications y ~/Applications, lee su Info.plist,
 //  y detecta archivos asociados (Application Support, Caches, Preferences,
-//  Containers, Saved State, etc.) por bundle identifier.
+//  Containers, Saved State, etc.) por bundle identifier y, con menor
+//  confianza, por nombre de la app.
 //
-//  La desinstalación mueve la .app y todos sus archivos asociados a la Papelera.
+//  ATENCIÓN: la desinstalación borra PERMANENTEMENTE la .app y los archivos
+//  asociados seleccionados (FileManager.removeItem / rm -rf privilegiado).
+//  NO pasa por la Papelera; la UI confirma con alert destructivo antes.
 //
 
 import AppKit
@@ -37,6 +40,10 @@ struct AssociatedItem: Identifiable, Hashable {
     let url: URL
     let category: String      // "Caches", "Preferences", etc.
     let sizeBytes: Int64
+    /// `true` si el match fue por NOMBRE de la app (heurística débil: un
+    /// nombre genérico puede colisionar con datos de otra app). Estos items
+    /// no se preseleccionan; el usuario los marca tras revisar la ruta.
+    let isNameMatch: Bool
 
     static func == (lhs: AssociatedItem, rhs: AssociatedItem) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -283,17 +290,18 @@ final class AppCatalogService: ObservableObject {
         )
     }
 
-    nonisolated private static func scanAssociatedFiles(for app: AppEntry) -> [AssociatedItem] {
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
-        var found: [AssociatedItem] = []
+    struct AssociatedCandidate: Hashable {
+        let category: String
+        let path: String
+        let isNameMatch: Bool
+    }
 
-        // Construir lista de candidatos por categoría: (categoría, ruta)
-        let bid = app.bundleID
-        let nameVariants = [app.name, app.name.replacingOccurrences(of: " ", with: "")].filter { !$0.isEmpty }
-
-        struct Candidate { let category: String; let path: String }
-        var candidates: [Candidate] = []
+    /// Rutas candidatas de archivos asociados. Los matches por bundle ID van
+    /// primero (el dedup por path conserva la primera aparición, así un path
+    /// que coincide por ambas vías queda como match fuerte).
+    nonisolated static func associatedCandidates(bundleID: String?, appName: String, home: URL) -> [AssociatedCandidate] {
+        let nameVariants = [appName, appName.replacingOccurrences(of: " ", with: "")].filter { !$0.isEmpty }
+        var candidates: [AssociatedCandidate] = []
 
         let categoriesByDir: [(String, String)] = [
             ("Application Support", "Library/Application Support"),
@@ -308,37 +316,37 @@ final class AppCatalogService: ObservableObject {
         ]
 
         for (category, dir) in categoriesByDir {
-            if let bid {
-                candidates.append(Candidate(category: category, path: home.appendingPathComponent("\(dir)/\(bid)").path))
+            if let bundleID {
+                candidates.append(AssociatedCandidate(category: category, path: home.appendingPathComponent("\(dir)/\(bundleID)").path, isNameMatch: false))
                 // Saved State usa sufijo .savedState
                 if category == "Saved Application State" {
-                    candidates.append(Candidate(category: category, path: home.appendingPathComponent("\(dir)/\(bid).savedState").path))
+                    candidates.append(AssociatedCandidate(category: category, path: home.appendingPathComponent("\(dir)/\(bundleID).savedState").path, isNameMatch: false))
                 }
                 if category == "Cookies" {
-                    candidates.append(Candidate(category: category, path: home.appendingPathComponent("\(dir)/\(bid).binarycookies").path))
+                    candidates.append(AssociatedCandidate(category: category, path: home.appendingPathComponent("\(dir)/\(bundleID).binarycookies").path, isNameMatch: false))
                 }
             }
             for nameVar in nameVariants {
-                candidates.append(Candidate(category: category, path: home.appendingPathComponent("\(dir)/\(nameVar)").path))
+                candidates.append(AssociatedCandidate(category: category, path: home.appendingPathComponent("\(dir)/\(nameVar)").path, isNameMatch: true))
             }
         }
 
-        // Preferences (.plist) — por bundle id
-        if let bid {
-            candidates.append(Candidate(category: "Preferences", path: home.appendingPathComponent("Library/Preferences/\(bid).plist").path))
+        if let bundleID {
+            // Preferences (.plist), Launch Agents y Crash Reports — sólo por bundle id
+            candidates.append(AssociatedCandidate(category: "Preferences", path: home.appendingPathComponent("Library/Preferences/\(bundleID).plist").path, isNameMatch: false))
+            candidates.append(AssociatedCandidate(category: "Launch Agent", path: home.appendingPathComponent("Library/LaunchAgents/\(bundleID).plist").path, isNameMatch: false))
+            candidates.append(AssociatedCandidate(category: "Crash Reports", path: home.appendingPathComponent("Library/Logs/DiagnosticReports/\(bundleID)").path, isNameMatch: false))
         }
+        return candidates
+    }
 
-        // Launch Agents
-        if let bid {
-            candidates.append(Candidate(category: "Launch Agent", path: home.appendingPathComponent("Library/LaunchAgents/\(bid).plist").path))
-        }
-
-        // Crash Reports
-        if let bid {
-            candidates.append(Candidate(category: "Crash Reports", path: home.appendingPathComponent("Library/Logs/DiagnosticReports/\(bid)").path))
-        }
+    nonisolated private static func scanAssociatedFiles(for app: AppEntry) -> [AssociatedItem] {
+        let fm = FileManager.default
+        let home = fm.homeDirectoryForCurrentUser
+        let candidates = associatedCandidates(bundleID: app.bundleID, appName: app.name, home: home)
 
         // Filtrar duplicados por path y los que no existen
+        var found: [AssociatedItem] = []
         var seen = Set<String>()
         for c in candidates where !seen.contains(c.path) {
             seen.insert(c.path)
@@ -346,7 +354,7 @@ final class AppCatalogService: ObservableObject {
             guard fm.fileExists(atPath: c.path) else { continue }
             let size = directorySize(at: url)
             guard size > 0 || !((try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false) else { continue }
-            found.append(AssociatedItem(url: url, category: c.category, sizeBytes: size))
+            found.append(AssociatedItem(url: url, category: c.category, sizeBytes: size, isNameMatch: c.isNameMatch))
         }
         return found.sorted { $0.sizeBytes > $1.sizeBytes }
     }
@@ -382,8 +390,9 @@ final class AppCatalogService: ObservableObject {
             return Int64(v?.totalFileAllocatedSize ?? v?.fileAllocatedSize ?? 0)
         }
 
+        // Sin .skipsHiddenFiles: el borrado elimina todo el árbol, así que el
+        // tamaño mostrado debe contar también lo oculto.
         guard let en = fm.enumerator(at: url, includingPropertiesForKeys: keys,
-                                     options: [.skipsHiddenFiles],
                                      errorHandler: { _, _ in true }) else { return 0 }
         var total: Int64 = 0
         for case let u as URL in en {

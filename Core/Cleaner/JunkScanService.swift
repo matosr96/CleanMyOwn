@@ -56,6 +56,11 @@ struct JunkCategory: Identifiable {
     let kind: JunkScanKind
     /// Si todas o algunas de sus operaciones de borrado requieren privilegios root.
     let requiresAdmin: Bool
+    /// Si los items de esta categoría se marcan automáticamente tras el escaneo.
+    /// Sólo debe ser `true` para datos regenerables (cachés, logs). Lo que se
+    /// apoya en heurísticas (datos huérfanos) o no es regenerable (snapshots,
+    /// simuladores) lo decide el usuario explícitamente.
+    let preselectedByDefault: Bool
 }
 
 /// Un item escaneado.
@@ -96,7 +101,11 @@ final class JunkScanService: ObservableObject {
 
     @Published var selection: Set<UUID> = []
 
+    // Los `Task.detached` no heredan la cancelación del task que los espera:
+    // se guardan los handles para cancelarlos explícitamente al re-escanear.
     private var scanTask: Task<Void, Never>?
+    private var scanWork: Task<[JunkItem], Never>?
+    private var installedIDsWork: Task<Set<String>, Never>?
 
     var selectedBytes: Int64 {
         results.flatMap(\.items).filter { selection.contains($0.id) }.reduce(0) { $0 + $1.sizeBytes }
@@ -123,7 +132,8 @@ final class JunkScanService: ObservableObject {
                 icon: "tray.2.fill",
                 tint: Color(red: 0.30, green: 0.85, blue: 0.55),
                 kind: .fileBased(roots: [home.appendingPathComponent("Library/Caches")], listsChildren: true),
-                requiresAdmin: false
+                requiresAdmin: false,
+                preselectedByDefault: true
             ),
             JunkCategory(
                 id: "user.logs",
@@ -132,7 +142,8 @@ final class JunkScanService: ObservableObject {
                 icon: "doc.text.fill",
                 tint: Color(red: 0.40, green: 0.70, blue: 1.0),
                 kind: .fileBased(roots: [home.appendingPathComponent("Library/Logs")], listsChildren: true),
-                requiresAdmin: false
+                requiresAdmin: false,
+                preselectedByDefault: true
             ),
             JunkCategory(
                 id: "trash",
@@ -141,7 +152,8 @@ final class JunkScanService: ObservableObject {
                 icon: "trash.fill",
                 tint: Color(red: 1.0, green: 0.55, blue: 0.40),
                 kind: .fileBased(roots: [home.appendingPathComponent(".Trash")], listsChildren: true),
-                requiresAdmin: false
+                requiresAdmin: false,
+                preselectedByDefault: true
             ),
             JunkCategory(
                 id: "xcode.derived",
@@ -150,7 +162,8 @@ final class JunkScanService: ObservableObject {
                 icon: "hammer.fill",
                 tint: Color(red: 0.85, green: 0.50, blue: 1.0),
                 kind: .fileBased(roots: [home.appendingPathComponent("Library/Developer/Xcode/DerivedData")], listsChildren: true),
-                requiresAdmin: false
+                requiresAdmin: false,
+                preselectedByDefault: true
             ),
             JunkCategory(
                 id: "xcode.archives",
@@ -159,7 +172,8 @@ final class JunkScanService: ObservableObject {
                 icon: "archivebox.fill",
                 tint: Color(red: 1.0, green: 0.65, blue: 0.20),
                 kind: .fileBased(roots: [home.appendingPathComponent("Library/Developer/Xcode/Archives")], listsChildren: true),
-                requiresAdmin: false
+                requiresAdmin: false,
+                preselectedByDefault: true
             ),
             JunkCategory(
                 id: "xcode.devicesupport",
@@ -168,7 +182,8 @@ final class JunkScanService: ObservableObject {
                 icon: "iphone",
                 tint: Color(red: 0.30, green: 0.85, blue: 0.95),
                 kind: .fileBased(roots: [home.appendingPathComponent("Library/Developer/Xcode/iOS DeviceSupport")], listsChildren: true),
-                requiresAdmin: false
+                requiresAdmin: false,
+                preselectedByDefault: true
             ),
             JunkCategory(
                 id: "simulator.caches",
@@ -177,7 +192,8 @@ final class JunkScanService: ObservableObject {
                 icon: "ipad",
                 tint: Color(red: 0.40, green: 0.55, blue: 1.0),
                 kind: .fileBased(roots: [home.appendingPathComponent("Library/Developer/CoreSimulator/Caches")], listsChildren: true),
-                requiresAdmin: false
+                requiresAdmin: false,
+                preselectedByDefault: true
             ),
 
             // ------ NUEVAS ------
@@ -211,7 +227,8 @@ final class JunkScanService: ObservableObject {
                     home.appendingPathComponent("Library/Caches/electron-builder"),
                     home.appendingPathComponent("Library/Caches/Yarn")
                 ]),
-                requiresAdmin: false
+                requiresAdmin: false,
+                preselectedByDefault: true
             ),
             JunkCategory(
                 id: "orphan.appdata",
@@ -229,7 +246,8 @@ final class JunkScanService: ObservableObject {
                     home.appendingPathComponent("Library/Logs"),
                     home.appendingPathComponent("Library/Saved Application State")
                 ]),
-                requiresAdmin: false
+                requiresAdmin: false,
+                preselectedByDefault: false
             ),
             JunkCategory(
                 id: "tm.snapshots",
@@ -238,7 +256,8 @@ final class JunkScanService: ObservableObject {
                 icon: "clock.arrow.circlepath",
                 tint: Color(red: 0.55, green: 0.75, blue: 1.0),
                 kind: .timeMachineSnapshots,
-                requiresAdmin: true
+                requiresAdmin: true,
+                preselectedByDefault: false
             ),
             JunkCategory(
                 id: "sim.obsolete",
@@ -247,7 +266,8 @@ final class JunkScanService: ObservableObject {
                 icon: "iphone.slash",
                 tint: Color(red: 0.85, green: 0.50, blue: 1.0),
                 kind: .iOSSimulators,
-                requiresAdmin: false
+                requiresAdmin: false,
+                preselectedByDefault: false
             )
         ]
     }()
@@ -256,6 +276,8 @@ final class JunkScanService: ObservableObject {
 
     func startScan() {
         scanTask?.cancel()
+        scanWork?.cancel()
+        installedIDsWork?.cancel()
         results = []
         selection = []
         lastError = nil
@@ -266,20 +288,31 @@ final class JunkScanService: ObservableObject {
         scanTask = Task { [weak self] in
             guard let self else { return }
             // Pre-calcular bundle IDs instalados (lo necesita orphan detection)
-            let installedIDs = await Task.detached(priority: .userInitiated) {
+            let idsWork = Task.detached(priority: .userInitiated) {
                 Self.installedBundleIDs()
-            }.value
+            }
+            self.installedIDsWork = idsWork
+            let installedIDs = await idsWork.value
+            guard !Task.isCancelled else { return }
 
             var collected: [JunkCategoryResult] = []
             for category in Self.categories {
-                if Task.isCancelled { break }
+                if Task.isCancelled { return }
                 self.scanProgressLabel = "Escaneando \(category.name)…"
-                let items = await Task.detached(priority: .userInitiated) {
+                let work = Task.detached(priority: .userInitiated) {
                     Self.scanCategory(category, installedBundleIDs: installedIDs)
-                }.value
+                }
+                self.scanWork = work
+                let items = await work.value
+                guard !Task.isCancelled else { return }
                 collected.append(JunkCategoryResult(id: category.id, category: category, items: items))
                 self.results = collected
-                self.selection = Set(collected.flatMap(\.items).map(\.id))
+                // Sólo pre-marcar categorías seguras, y SUMANDO (formUnion):
+                // reasignar todo el set pisaría lo que el usuario desmarcó
+                // mientras el escaneo seguía corriendo.
+                if category.preselectedByDefault {
+                    self.selection.formUnion(items.map(\.id))
+                }
             }
             self.isScanning = false
             self.scanProgressLabel = ""
@@ -313,8 +346,12 @@ final class JunkScanService: ObservableObject {
         for root in roots {
             guard fm.fileExists(atPath: root.path) else { continue }
             if listsChildren {
-                guard let children = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else { continue }
+                // Sin .skipsHiddenFiles: lo que se lista es lo que se borra
+                // (la Papelera puede contener items ocultos, por ejemplo).
+                guard let children = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey]) else { continue }
                 for child in children {
+                    if Task.isCancelled { return items }
+                    if child.lastPathComponent == ".DS_Store" { continue }
                     let isDir = (try? child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
                     let size = directorySize(at: child)
                     guard size > 0 else { continue }
@@ -347,7 +384,7 @@ final class JunkScanService: ObservableObject {
         return items
     }
 
-    nonisolated private static func devCacheDisplayName(for url: URL) -> String {
+    nonisolated static func devCacheDisplayName(for url: URL) -> String {
         let p = url.path
         if p.contains(".npm") { return "npm cache" }
         if p.contains(".yarn") || p.contains("Yarn") { return "Yarn cache" }
@@ -383,6 +420,7 @@ final class JunkScanService: ObservableObject {
             guard fm.fileExists(atPath: dir.path) else { continue }
             guard let children = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else { continue }
             for child in children {
+                if Task.isCancelled { return items }
                 let name = child.lastPathComponent
                 var bid = name
                 for suffix in [".plist", ".savedState", ".binarycookies"] {
@@ -409,7 +447,7 @@ final class JunkScanService: ObservableObject {
     /// `bid` es una app instalada — directo o como sub-bundle de una instalada
     /// (ej: `net.whatsapp.WhatsApp.ServiceExtension` cuando WhatsApp está
     /// instalado como `net.whatsapp.WhatsApp`).
-    nonisolated private static func isInstalledOrSubBundle(_ bid: String, installed: Set<String>, sorted: [String]) -> Bool {
+    nonisolated static func isInstalledOrSubBundle(_ bid: String, installed: Set<String>, sorted: [String]) -> Bool {
         if installed.contains(bid) { return true }
         for inst in sorted {
             if bid.hasPrefix(inst + ".") { return true }
@@ -417,7 +455,7 @@ final class JunkScanService: ObservableObject {
         return false
     }
 
-    nonisolated private static func isLikelyBundleID(_ s: String) -> Bool {
+    nonisolated static func isLikelyBundleID(_ s: String) -> Bool {
         guard s.contains(".") else { return false }
         // Forma típica: com.empresa.producto / org.dominio.x
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_")
@@ -518,7 +556,7 @@ final class JunkScanService: ObservableObject {
     }
 
     nonisolated private static func mdfindApplications() -> [String] {
-        let res = runShellSync("/usr/bin/mdfind", ["kMDItemContentType == 'com.apple.application-bundle'"])
+        let res = ShellRunner.runSync("/usr/bin/mdfind", ["kMDItemContentType == 'com.apple.application-bundle'"])
         guard res.exitCode == 0 else { return [] }
         return res.stdout
             .split(separator: "\n")
@@ -527,30 +565,38 @@ final class JunkScanService: ObservableObject {
     }
 
     nonisolated private static func scanTimeMachineSnapshots() -> [JunkItem] {
-        let result = runShellSync("/usr/bin/tmutil", ["listlocalsnapshots", "/"])
+        let result = ShellRunner.runSync("/usr/bin/tmutil", ["listlocalsnapshots", "/"])
         guard result.exitCode == 0 else { return [] }
-        var items: [JunkItem] = []
-        for line in result.stdout.split(separator: "\n") {
-            let s = line.trimmingCharacters(in: .whitespaces)
-            // Formato: com.apple.TimeMachine.YYYY-MM-DD-HHMMSS.local
-            guard s.hasPrefix("com.apple.TimeMachine.") else { continue }
-            let datePart = s
-                .replacingOccurrences(of: "com.apple.TimeMachine.", with: "")
-                .replacingOccurrences(of: ".local", with: "")
-            guard !datePart.isEmpty else { continue }
-            items.append(JunkItem(
+        return parseSnapshotIdentifiers(from: result.stdout).map { datePart in
+            JunkItem(
                 kind: .localSnapshot(date: datePart),
                 displayName: prettySnapshotDate(datePart),
                 detail: "Snapshot en /  ·  identificador: \(datePart)",
                 sizeBytes: 0,             // tamaño real no es accesible por API
                 isDirectory: false
-            ))
+            )
         }
-        return items
+    }
+
+    /// Extrae los identificadores de fecha de la salida de
+    /// `tmutil listlocalsnapshots /`. Formato de cada línea relevante:
+    /// `com.apple.TimeMachine.YYYY-MM-DD-HHMMSS.local`
+    nonisolated static func parseSnapshotIdentifiers(from stdout: String) -> [String] {
+        var identifiers: [String] = []
+        for line in stdout.split(separator: "\n") {
+            let s = line.trimmingCharacters(in: .whitespaces)
+            guard s.hasPrefix("com.apple.TimeMachine.") else { continue }
+            let datePart = s
+                .replacingOccurrences(of: "com.apple.TimeMachine.", with: "")
+                .replacingOccurrences(of: ".local", with: "")
+            guard !datePart.isEmpty else { continue }
+            identifiers.append(datePart)
+        }
+        return identifiers
     }
 
     /// "2026-05-08-123456" -> "8 may 2026 · 12:34:56"
-    nonisolated private static func prettySnapshotDate(_ raw: String) -> String {
+    nonisolated static func prettySnapshotDate(_ raw: String) -> String {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd-HHmmss"
         f.timeZone = TimeZone.current
@@ -562,7 +608,7 @@ final class JunkScanService: ObservableObject {
     }
 
     nonisolated private static func scanIOSSimulators() -> [JunkItem] {
-        let result = runShellSync("/usr/bin/xcrun", ["simctl", "list", "devices", "-j"])
+        let result = ShellRunner.runSync("/usr/bin/xcrun", ["simctl", "list", "devices", "-j"])
         guard result.exitCode == 0,
               let data = result.stdout.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -598,6 +644,8 @@ final class JunkScanService: ObservableObject {
 
     // MARK: - Tamaño de directorio
 
+    /// Tamaño real en disco. Sin .skipsHiddenFiles: el borrado elimina TODO el
+    /// árbol, así que el tamaño mostrado debe contar también lo oculto.
     nonisolated private static func directorySize(at url: URL) -> Int64 {
         let fm = FileManager.default
         let keys: [URLResourceKey] = [.isDirectoryKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
@@ -608,41 +656,15 @@ final class JunkScanService: ObservableObject {
             return Int64(v?.totalFileAllocatedSize ?? v?.fileAllocatedSize ?? 0)
         }
         guard let en = fm.enumerator(at: url, includingPropertiesForKeys: keys,
-                                     options: [.skipsHiddenFiles],
                                      errorHandler: { _, _ in true }) else { return 0 }
         var total: Int64 = 0
         for case let u as URL in en {
+            if Task.isCancelled { return total }
             let v = try? u.resourceValues(forKeys: Set(keys))
             if v?.isDirectory == true { continue }
             total += Int64(v?.totalFileAllocatedSize ?? v?.fileAllocatedSize ?? 0)
         }
         return total
-    }
-
-    // MARK: - Shell helper
-
-    struct ShellResult { let exitCode: Int32; let stdout: String; let stderr: String }
-
-    nonisolated private static func runShellSync(_ launchPath: String, _ args: [String]) -> ShellResult {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: launchPath)
-        p.arguments = args
-        let outPipe = Pipe(); let errPipe = Pipe()
-        p.standardOutput = outPipe
-        p.standardError = errPipe
-        do {
-            try p.run()
-            p.waitUntilExit()
-        } catch {
-            return ShellResult(exitCode: -1, stdout: "", stderr: error.localizedDescription)
-        }
-        let outData = (try? outPipe.fileHandleForReading.readToEnd()) ?? Data()
-        let errData = (try? errPipe.fileHandleForReading.readToEnd()) ?? Data()
-        return ShellResult(
-            exitCode: p.terminationStatus,
-            stdout: String(data: outData, encoding: .utf8) ?? "",
-            stderr: String(data: errData, encoding: .utf8) ?? ""
-        )
     }
 
     // MARK: - Limpieza
@@ -744,7 +766,7 @@ final class JunkScanService: ObservableObject {
         if !simUDIDs.isEmpty {
             for item in selectedItems {
                 guard case .simulator(let udid) = item.kind else { continue }
-                let res = Self.runShellSync("/usr/bin/xcrun", ["simctl", "delete", udid])
+                let res = ShellRunner.runSync("/usr/bin/xcrun", ["simctl", "delete", udid])
                 if res.exitCode == 0 {
                     freed += item.sizeBytes
                     removedIds.insert(item.id)

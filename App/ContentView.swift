@@ -45,5 +45,7 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environmentObject(PermissionsMonitor.shared)
+        .environmentObject(AdminSessionService())
         .frame(width: 1100, height: 700)
 }
