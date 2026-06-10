@@ -33,32 +33,48 @@ struct HelperStatusControls: View {
 
     @ViewBuilder
     private var actions: some View {
-        switch admin.helperStatus {
-        case .enabled:
-            Button("Desinstalar") { admin.unregisterHelper() }
-                .buttonStyle(.plain)
-                .font(.bodySmall)
-                .foregroundStyle(Theme.textTertiary)
-        case .requiresApproval:
-            Button("Abrir Ajustes") { admin.openHelperApprovalSettings() }
+        if admin.helperIsBroken {
+            // Registrado pero no contesta (típico tras recompilar): reinstalar
+            // lo vuelve a registrar con la firma actual.
+            Button("Reinstalar") { admin.registerHelper() }
                 .buttonStyle(.plain)
                 .font(.bodySmall.weight(.semibold))
-                .foregroundStyle(Theme.accent)
-            Button(action: { admin.refreshHelperStatus() }) {
-                Image(systemName: "arrow.clockwise").font(.system(size: 11))
+                .foregroundStyle(Theme.warning)
+            Button(action: { admin.unregisterHelper() }) {
+                Image(systemName: "xmark.circle").font(.system(size: 11))
             }
             .buttonStyle(.plain)
             .foregroundStyle(Theme.textTertiary)
-            .help("Revisar si ya quedó aprobado")
-        default:
-            Button("Instalar asistente") { admin.registerHelper() }
+            .help("Quitar el asistente")
+        } else {
+            switch admin.helperStatus {
+            case .enabled:
+                Button("Desinstalar") { admin.unregisterHelper() }
+                    .buttonStyle(.plain)
+                    .font(.bodySmall)
+                    .foregroundStyle(Theme.textTertiary)
+            case .requiresApproval:
+                Button("Abrir Ajustes") { admin.openHelperApprovalSettings() }
+                    .buttonStyle(.plain)
+                    .font(.bodySmall.weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+                Button(action: { admin.refreshHelperStatus() }) {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 11))
+                }
                 .buttonStyle(.plain)
-                .font(.bodySmall.weight(.semibold))
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(Theme.textTertiary)
+                .help("Revisar si ya quedó aprobado")
+            default:
+                Button("Instalar asistente") { admin.registerHelper() }
+                    .buttonStyle(.plain)
+                    .font(.bodySmall.weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+            }
         }
     }
 
     private var icon: String {
+        if admin.helperIsBroken { return "exclamationmark.triangle.fill" }
         switch admin.helperStatus {
         case .enabled: return "bolt.shield.fill"
         case .requiresApproval: return "hourglass"
@@ -67,6 +83,7 @@ struct HelperStatusControls: View {
     }
 
     private var tint: Color {
+        if admin.helperIsBroken { return Theme.warning }
         switch admin.helperStatus {
         case .enabled: return Theme.success
         case .requiresApproval: return Theme.warning
@@ -75,6 +92,9 @@ struct HelperStatusControls: View {
     }
 
     private var label: String {
+        if admin.helperIsBroken {
+            return "El asistente está instalado pero no responde. Mientras tanto se pide la contraseña; reinstálalo para volver a operar sin ella."
+        }
         switch admin.helperStatus {
         case .enabled:
             return "Asistente en segundo plano activo — tareas protegidas sin contraseña, para siempre."

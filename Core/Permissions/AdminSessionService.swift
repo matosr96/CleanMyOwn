@@ -89,6 +89,22 @@ final class AdminSessionService: ObservableObject {
         var success: Bool { exitCode == 0 }
     }
 
+    /// Exit code sentinela: el transporte XPC con el asistente falló (no
+    /// respondió, conexión rota, proxy inválido). El helper nunca produce
+    /// este valor, así que el caller puede distinguir "el asistente no
+    /// contesta" de "el comando corrió y devolvió error" y caer a AEWP.
+    nonisolated static let xpcTransportFailure: Int32 = -9999
+
+    /// Salud del asistente esta sesión: nil = no probado, true = responde,
+    /// false = no responde (no reintentar, ir directo a AEWP). Evita esperar
+    /// el timeout en cada operación cuando el daemon está roto (típico tras
+    /// rebuilds que cambian el cdhash sin re-registrar). Publicado para que
+    /// la UI avise "instalado pero no responde" en vez de mentir con "activo".
+    @Published private(set) var helperResponsive: Bool?
+
+    /// El asistente está registrado pero no contesta — conviene reinstalarlo.
+    var helperIsBroken: Bool { helperEnabled && helperResponsive == false }
+
     // MARK: - Activación / desactivación
 
     @discardableResult
@@ -211,39 +227,72 @@ final class AdminSessionService: ObservableObject {
             return PrivilegedResult(exitCode: -1, output: notes.joined(separator: "\n"))
         }
 
-        let result: PrivilegedResult
-        if helperEnabled {
-            result = await callHelper { proxy, reply in
-                proxy.removeItems(paths: allowed, reply: reply)
-            }
-        } else {
-            result = await runPrivileged("/bin/rm", ["-rf", "--"] + allowed)
-        }
+        let result = await runEscalated(
+            helperCall: { proxy, reply in proxy.removeItems(paths: allowed, reply: reply) },
+            aewpTool: "/bin/rm", aewpArgs: ["-rf", "--"] + allowed
+        )
         let output = (notes + [result.output]).filter { !$0.isEmpty }.joined(separator: "\n")
         return PrivilegedResult(exitCode: result.exitCode, output: output)
     }
 
-    /// Borra un snapshot local de Time Machine (helper si está activo; si no,
-    /// `tmutil` vía la sesión AEWP).
+    /// Borra un snapshot local de Time Machine (asistente si responde; si no,
+    /// `tmutil` vía AEWP).
     @discardableResult
     func deleteTMSnapshot(date: String) async -> PrivilegedResult {
-        if helperEnabled {
-            return await callHelper { proxy, reply in
-                proxy.deleteTimeMachineSnapshot(date: date, reply: reply)
-            }
-        }
-        return await runPrivileged("/usr/bin/tmutil", ["deletelocalsnapshots", date])
+        await runEscalated(
+            helperCall: { proxy, reply in proxy.deleteTimeMachineSnapshot(date: date, reply: reply) },
+            aewpTool: "/usr/bin/tmutil", aewpArgs: ["deletelocalsnapshots", date]
+        )
     }
 
-    /// Ejecuta `/usr/sbin/purge` (helper si está activo; si no, sesión AEWP).
+    /// Ejecuta `/usr/sbin/purge` (asistente si responde; si no, AEWP).
     @discardableResult
     func runPurge() async -> PrivilegedResult {
+        await runEscalated(
+            helperCall: { proxy, reply in proxy.purgeMemory(reply: reply) },
+            aewpTool: "/usr/sbin/purge", aewpArgs: []
+        )
+    }
+
+    /// Ejecuta una operación privilegiada con la mejor vía disponible y SIN
+    /// colgarse nunca: el asistente XPC si responde (rápido, sin contraseña),
+    /// y AEWP como respaldo garantizado (un prompt) si el asistente no está
+    /// o no contesta. El asistente es una optimización, no un punto único
+    /// de fallo.
+    private func runEscalated(
+        helperCall: @escaping (HelperXPCProtocol, @escaping (Int32, String) -> Void) -> Void,
+        aewpTool: String,
+        aewpArgs: [String]
+    ) async -> PrivilegedResult {
+        // 1) Asistente, si está instalado y no lo hemos descartado ya.
         if helperEnabled {
-            return await callHelper { proxy, reply in
-                proxy.purgeMemory(reply: reply)
+            // Primer uso de la sesión: ping rápido para saber si el daemon
+            // contesta (3 s). Si no, no lo reintentamos más esta sesión.
+            if helperResponsive == nil {
+                let ping = await callHelper(timeout: 3) { proxy, reply in
+                    proxy.version { v in reply(Int32(v), "") }
+                }
+                helperResponsive = (ping.exitCode != Self.xpcTransportFailure)
+            }
+            if helperResponsive == true {
+                let r = await callHelper(timeout: 30, helperCall)
+                if r.exitCode != Self.xpcTransportFailure { return r }
+                helperResponsive = false   // murió a mitad → caer a AEWP
             }
         }
-        return await runPrivileged("/usr/sbin/purge", [])
+
+        // 2) AEWP — respaldo que siempre funciona. Activa la sesión (un
+        //    único prompt nativo) si aún no está viva.
+        if authRef == nil {
+            let ok = await activate()
+            if !ok {
+                return PrivilegedResult(
+                    exitCode: -1,
+                    output: lastError ?? "Se necesita autorización de administrador."
+                )
+            }
+        }
+        return await runPrivileged(aewpTool, aewpArgs)
     }
 
     // MARK: - Helper privilegiado (SMAppService.daemon)
@@ -256,6 +305,7 @@ final class AdminSessionService: ObservableObject {
     /// y hay que aprobarlo en Ajustes del Sistema → General → Ítems de inicio
     /// y extensiones → Permitir en segundo plano.
     func registerHelper() {
+        helperResponsive = nil   // un (re)registro merece reevaluar la salud
         do {
             try helperDaemon.register()
         } catch {
@@ -276,6 +326,7 @@ final class AdminSessionService: ObservableObject {
         try? helperDaemon.unregister()
         helperConnection?.invalidate()
         helperConnection = nil
+        helperResponsive = nil
         refreshHelperStatus()
     }
 
@@ -313,20 +364,39 @@ final class AdminSessionService: ObservableObject {
     }
 
     private func callHelper(
+        timeout: TimeInterval,
         _ body: @escaping (HelperXPCProtocol, @escaping (Int32, String) -> Void) -> Void
     ) async -> PrivilegedResult {
         let connection = helperXPCConnection()
         return await withCheckedContinuation { continuation in
             let once = ResumeOnce(continuation)
+
+            // Guarda de timeout: si el daemon no responde (cdhash stale, no
+            // arranca, requirement de firma roto…) el error handler de XPC a
+            // veces NO se dispara. Sin esto la operación —y la UI— se cuelgan
+            // para siempre. Al vencer, invalidamos la conexión (posiblemente
+            // zombie) y reportamos fallo de transporte para caer a AEWP.
+            let timeoutTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                self?.helperConnection?.invalidate()
+                self?.helperConnection = nil
+                once.resume(PrivilegedResult(exitCode: Self.xpcTransportFailure,
+                                             output: "El asistente no respondió a tiempo."))
+            }
+
             let raw = connection.remoteObjectProxyWithErrorHandler { error in
-                once.resume(PrivilegedResult(exitCode: -1,
-                                             output: "XPC con el helper falló: \(error.localizedDescription)"))
+                timeoutTask.cancel()
+                once.resume(PrivilegedResult(exitCode: Self.xpcTransportFailure,
+                                             output: "Falló la conexión con el asistente: \(error.localizedDescription)"))
             }
             guard let proxy = raw as? HelperXPCProtocol else {
-                once.resume(PrivilegedResult(exitCode: -1, output: "Proxy XPC inválido"))
+                timeoutTask.cancel()
+                once.resume(PrivilegedResult(exitCode: Self.xpcTransportFailure, output: "Proxy XPC inválido"))
                 return
             }
             body(proxy) { code, output in
+                timeoutTask.cancel()
                 once.resume(PrivilegedResult(exitCode: code, output: output))
             }
         }

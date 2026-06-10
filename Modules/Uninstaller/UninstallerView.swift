@@ -380,6 +380,8 @@ struct UninstallerView: View {
     private func runUninstall() async {
         guard let app = selectedApp else { return }
         isUninstalling = true
+        // Garantía: el botón nunca queda atrapado en "Desinstalando…".
+        defer { isUninstalling = false }
         let toRemove = associated.filter { assocSelection.contains($0.id) }
 
         var result = await catalog.uninstall(app, includingAssociated: toRemove,
