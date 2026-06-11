@@ -412,6 +412,21 @@ final class CPUUsageTests: XCTestCase {
     }
 }
 
+// MARK: - Temas
+
+final class AppThemeTests: XCTestCase {
+    func testResolutionPerTheme() {
+        // Claro y Oscuro/Multicolor ignoran la apariencia del sistema
+        XCTAssertFalse(AppTheme.light.resolvesDark(systemIsDark: true))
+        XCTAssertFalse(AppTheme.light.resolvesDark(systemIsDark: false))
+        XCTAssertTrue(AppTheme.dark.resolvesDark(systemIsDark: false))
+        XCTAssertTrue(AppTheme.multicolor.resolvesDark(systemIsDark: false))
+        // Sistema la sigue
+        XCTAssertTrue(AppTheme.system.resolvesDark(systemIsDark: true))
+        XCTAssertFalse(AppTheme.system.resolvesDark(systemIsDark: false))
+    }
+}
+
 // MARK: - MemoryStats
 
 final class MemoryStatsTests: XCTestCase {

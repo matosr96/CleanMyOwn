@@ -32,7 +32,7 @@ struct PolishedPrimaryButtonStyle: ButtonStyle {
             .overlay(
                 // Glow ring que aparece al hover
                 RoundedRectangle(cornerRadius: Theme.cornerMedium, style: .continuous)
-                    .stroke(Color.white.opacity(hovering ? 0.18 : 0), lineWidth: 1)
+                    .stroke(Theme.onSurface(hovering ? 0.18 : 0), lineWidth: 1)
             )
             .shadow(color: glow.opacity(hovering ? 0.45 : 0.20),
                     radius: hovering ? 18 : 10,
@@ -64,7 +64,7 @@ struct PolishedSecondaryButtonStyle: ButtonStyle {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color.white.opacity(hovering ? 0.10 : 0.04), lineWidth: 1)
+                    .stroke(Theme.onSurface(hovering ? 0.10 : 0.04), lineWidth: 1)
             )
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(Anim.snappy, value: configuration.isPressed)

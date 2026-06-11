@@ -47,7 +47,7 @@ struct SmartScanButton: View {
                 // Interior
                 Circle()
                     .fill(Theme.cardGradient)
-                    .overlay(Circle().stroke(Color.white.opacity(0.06), lineWidth: 1))
+                    .overlay(Circle().stroke(Theme.onSurface(0.06), lineWidth: 1))
                     .frame(width: size - 30, height: size - 30)
 
                 VStack(spacing: 10) {

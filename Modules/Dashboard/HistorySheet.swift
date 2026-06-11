@@ -45,7 +45,7 @@ struct HistorySheet: View {
             }
             .padding(24)
 
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(Theme.onSurface(0.06))
 
             if history.records.isEmpty {
                 VStack(spacing: 10) {
@@ -113,7 +113,7 @@ struct HistorySheet: View {
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.025)))
+        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.onSurface(0.025)))
     }
 }
 

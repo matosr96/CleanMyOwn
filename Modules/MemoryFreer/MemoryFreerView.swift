@@ -103,7 +103,7 @@ struct MemoryFreerView: View {
                     }
                     HStack(spacing: 18) {
                         legendDot(color: purple, label: "Caché de archivos", bytes: stats.cachedBytes)
-                        legendDot(color: Color.white.opacity(0.25), label: "Libre", bytes: stats.freeBytes)
+                        legendDot(color: Theme.onSurface(0.25), label: "Libre", bytes: stats.freeBytes)
                     }
                 }
             }
@@ -155,7 +155,7 @@ struct MemoryFreerView: View {
                 segment(width: w * Double(stats.compressedBytes) / total, color: Theme.warning)
                 segment(width: w * Double(stats.cachedBytes) / total, color: purple.opacity(0.75))
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.white.opacity(0.07))
+                    .fill(Theme.onSurface(0.07))
                     .frame(maxWidth: .infinity)
             }
         }
@@ -200,8 +200,8 @@ struct MemoryFreerView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(14)
-        .background(RoundedRectangle(cornerRadius: Theme.cornerMedium).fill(Color.white.opacity(0.025)))
-        .overlay(RoundedRectangle(cornerRadius: Theme.cornerMedium).stroke(Color.white.opacity(0.05), lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: Theme.cornerMedium).fill(Theme.onSurface(0.025)))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerMedium).stroke(Theme.onSurface(0.05), lineWidth: 1))
     }
 
     private func errorBanner(_ msg: String) -> some View {

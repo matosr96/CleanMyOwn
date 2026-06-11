@@ -187,12 +187,12 @@ struct UninstallerView: View {
                     if catalog.isLoading && catalog.apps.isEmpty {
                         ForEach(0..<8, id: \.self) { _ in
                             HStack(spacing: 12) {
-                                RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.08))
+                                RoundedRectangle(cornerRadius: 6).fill(Theme.onSurface(0.08))
                                     .frame(width: 28, height: 28)
                                 VStack(alignment: .leading, spacing: 6) {
-                                    RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.10))
+                                    RoundedRectangle(cornerRadius: 4).fill(Theme.onSurface(0.10))
                                         .frame(width: 130, height: 11)
-                                    RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.06))
+                                    RoundedRectangle(cornerRadius: 4).fill(Theme.onSurface(0.06))
                                         .frame(width: 60, height: 9)
                                 }
                                 Spacer()
@@ -218,7 +218,7 @@ struct UninstallerView: View {
         .frame(width: 320)
         .padding(14)
         .background(RoundedRectangle(cornerRadius: Theme.cornerLarge).fill(Theme.cardGradient))
-        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge).stroke(Color.white.opacity(0.04), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge).stroke(Theme.onSurface(0.04), lineWidth: 1))
     }
 
     // MARK: - Detalle
@@ -242,7 +242,7 @@ struct UninstallerView: View {
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(RoundedRectangle(cornerRadius: Theme.cornerLarge).fill(Theme.cardGradient))
-        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge).stroke(Color.white.opacity(0.04), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge).stroke(Theme.onSurface(0.04), lineWidth: 1))
     }
 
     private func detailHeader(app: AppEntry) -> some View {
@@ -311,7 +311,7 @@ struct UninstallerView: View {
                                     Text("POR NOMBRE")
                                         .font(.label).foregroundStyle(Theme.textTertiary)
                                         .padding(.horizontal, 6).padding(.vertical, 3)
-                                        .background(Capsule().fill(Color.white.opacity(0.06)))
+                                        .background(Capsule().fill(Theme.onSurface(0.06)))
                                         .help("Coincide sólo por el nombre de la app — puede pertenecer a otra. Revisa la ruta antes de marcarlo.")
                                 }
 
@@ -479,7 +479,7 @@ private struct AppRow: View {
             .padding(.horizontal, 10).padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? Color.white.opacity(0.08) : (hovering ? Color.white.opacity(0.03) : Color.clear))
+                    .fill(isSelected ? Theme.onSurface(0.08) : (hovering ? Theme.onSurface(0.03) : Color.clear))
             )
         }
         .buttonStyle(.plain)

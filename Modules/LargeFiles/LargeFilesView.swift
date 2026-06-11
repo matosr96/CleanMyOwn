@@ -157,7 +157,7 @@ struct LargeFilesView: View {
             Text(title).font(.bodyMedium)
                 .padding(.horizontal, 14).padding(.vertical, 7)
                 .background(RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? Color.white.opacity(0.08) : Color.clear))
+                    .fill(isSelected ? Theme.onSurface(0.08) : Color.clear))
                 .foregroundStyle(isSelected ? Theme.textPrimary : Theme.textSecondary)
         }.buttonStyle(.plain)
     }
@@ -190,7 +190,7 @@ struct LargeFilesView: View {
             }
         }
         .background(RoundedRectangle(cornerRadius: Theme.cornerLarge).fill(Theme.cardGradient))
-        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge).stroke(Color.white.opacity(0.04), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerLarge).stroke(Theme.onSurface(0.04), lineWidth: 1))
     }
 
     private func fileRow(_ file: LargeFile) -> some View {
@@ -304,7 +304,7 @@ private struct FileRow: View {
                 .font(.bodyMedium).foregroundStyle(Theme.textPrimary).monospacedDigit().frame(width: 100, alignment: .trailing)
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(hovering ? Color.white.opacity(0.03) : Color.clear))
+        .background(RoundedRectangle(cornerRadius: 8).fill(hovering ? Theme.onSurface(0.03) : Color.clear))
         .onHover { hovering = $0 }
         .animation(Anim.hover, value: hovering)
     }
@@ -342,13 +342,13 @@ private struct DuplicateGroupCard: View {
                         }
                     }
                     .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.02)))
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Theme.onSurface(0.02)))
                 }
             }
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: Theme.cornerMedium).fill(Theme.card))
-        .overlay(RoundedRectangle(cornerRadius: Theme.cornerMedium).stroke(Color.white.opacity(0.04), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cornerMedium).stroke(Theme.onSurface(0.04), lineWidth: 1))
     }
 }
 

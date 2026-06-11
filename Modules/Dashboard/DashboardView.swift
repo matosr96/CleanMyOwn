@@ -194,7 +194,7 @@ struct DashboardView: View {
                     .font(.heroTitle)
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [.white, Color(white: 0.75)],
+                            colors: [Theme.textPrimary, Theme.textPrimary.opacity(0.75)],
                             startPoint: .top, endPoint: .bottom
                         )
                     )
@@ -213,7 +213,7 @@ struct DashboardView: View {
                 }
                 .font(.bodyMedium.weight(.semibold))
                 .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(RoundedRectangle(cornerRadius: 9).fill(Color.white.opacity(0.06)))
+                .background(RoundedRectangle(cornerRadius: 9).fill(Theme.onSurface(0.06)))
                 .foregroundStyle(Theme.textSecondary)
             }
             .buttonStyle(.plain)
@@ -279,7 +279,7 @@ struct DashboardView: View {
                     if junkBytes > 0 {
                         legendDot(color: Theme.warning, label: "Basura detectada", bytes: junkBytes)
                     }
-                    legendDot(color: Color.white.opacity(0.25), label: "Libre", bytes: free)
+                    legendDot(color: Theme.onSurface(0.25), label: "Libre", bytes: free)
                     if junkBytes == 0 && !junk.isScanning {
                         Text("· pasa el Smart Scan para ver cuánto es basura")
                             .font(.bodySmall).foregroundStyle(Theme.textTertiary)
@@ -311,7 +311,7 @@ struct DashboardView: View {
                         .shadow(color: Theme.warning.opacity(0.55), radius: 5)
                 }
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.white.opacity(0.07))
+                    .fill(Theme.onSurface(0.07))
                     .frame(maxWidth: .infinity)
             }
         }

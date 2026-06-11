@@ -141,7 +141,7 @@ struct LoginItemsView: View {
             }
             .padding(10)
             .background(RoundedRectangle(cornerRadius: Theme.cornerMedium).fill(Theme.cardGradient))
-            .overlay(RoundedRectangle(cornerRadius: Theme.cornerMedium).stroke(Color.white.opacity(0.04), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: Theme.cornerMedium).stroke(Theme.onSurface(0.04), lineWidth: 1))
         }
     }
 }
@@ -193,7 +193,7 @@ private struct AgentRow: View {
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 9)
-        .background(RoundedRectangle(cornerRadius: 8).fill(hovering ? Color.white.opacity(0.045) : Color.white.opacity(0.02)))
+        .background(RoundedRectangle(cornerRadius: 8).fill(hovering ? Theme.onSurface(0.045) : Theme.onSurface(0.02)))
         .onHover { hovering = $0 }
         .animation(Anim.hover, value: hovering)
     }

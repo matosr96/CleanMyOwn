@@ -41,7 +41,7 @@ struct ProgressRing: View {
 
             // Track de fondo
             Circle()
-                .stroke(Color.white.opacity(0.08), lineWidth: lineWidth)
+                .stroke(Theme.onSurface(0.08), lineWidth: lineWidth)
 
             // Progreso
             Circle()

@@ -12,6 +12,7 @@ struct ContentView: View {
     /// Dirección del último cambio de módulo (para la transición direccional).
     @State private var movedDown = true
     @EnvironmentObject private var junk: JunkScanService
+    @EnvironmentObject private var themeManager: ThemeManager
 
     /// Binding que captura la DIRECCIÓN del salto en el menú antes de animar.
     private var directedSelection: Binding<AppModule> {
@@ -33,8 +34,11 @@ struct ContentView: View {
         // (verde mientras escanea): la pantalla entera acompaña al contexto.
         ZStack {
             AnimatedBackground(
-                intensity: junk.isScanning ? 0.50 : 0.35,
-                tint: junk.isScanning ? Theme.success : selection.accentColor
+                intensity: junk.isScanning ? max(0.50, themeManager.canvasIntensity)
+                                           : themeManager.canvasIntensity,
+                tint: themeManager.canvasTintEnabled
+                    ? (junk.isScanning ? Theme.success : selection.accentColor)
+                    : nil
             )
 
             HStack(spacing: 0) {
@@ -61,7 +65,10 @@ struct ContentView: View {
             }
         }
         .background(Theme.background)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(themeManager.colorScheme)
+        // Las constantes de Theme son computadas: al cambiar el tema hay que
+        // reconstruir el árbol para que TODAS las vistas relean la paleta.
+        .id(themeManager.themeKey)
     }
 }
 

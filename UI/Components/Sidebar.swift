@@ -34,6 +34,7 @@ enum AppModule: String, CaseIterable, Identifiable {
         }
     }
 
+    @MainActor
     var accentColor: Color {
         switch self {
         case .dashboard:    return Theme.accent
@@ -97,6 +98,19 @@ struct Sidebar: View {
 
             Spacer()
 
+            // Ajustes (⌘, también funciona — este es el acceso visible)
+            SettingsLink {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.textTertiary)
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Ajustes de CleanMyOwn (⌘,)")
+            .accessibilityLabel("Ajustes")
+            .padding(.bottom, 8)
+
             // Estado: dos puntos con tooltip — mínima superficie, máxima señal
             VStack(spacing: 10) {
                 statusDot(
@@ -150,7 +164,7 @@ private struct RailItem: View {
                             RoundedRectangle(cornerRadius: 13, style: .continuous)
                                 .stroke(
                                     LinearGradient(
-                                        colors: [.white.opacity(0.35), module.accentColor.opacity(0.25), .clear],
+                                        colors: [Theme.onSurface(0.35), module.accentColor.opacity(0.25), .clear],
                                         startPoint: .topLeading, endPoint: .bottomTrailing
                                     ),
                                     lineWidth: 1

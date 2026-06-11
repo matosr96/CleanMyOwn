@@ -33,7 +33,7 @@ struct OnboardingView: View {
             HStack(spacing: 8) {
                 ForEach(0..<totalSteps, id: \.self) { i in
                     Capsule()
-                        .fill(i <= step ? Theme.accent : Color.white.opacity(0.1))
+                        .fill(i <= step ? Theme.accent : Theme.onSurface(0.1))
                         .frame(height: 4)
                 }
             }
@@ -66,7 +66,6 @@ struct OnboardingView: View {
         }
         .frame(width: 640, height: 540)
         .background(Theme.background)
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - Slides

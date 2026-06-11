@@ -42,7 +42,7 @@ struct SearchField: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .stroke(focused ? Theme.accent.opacity(0.55) : Color.white.opacity(0.06),
+                .stroke(focused ? Theme.accent.opacity(0.55) : Theme.onSurface(0.06),
                         lineWidth: 1)
         )
         .shadow(color: focused ? Theme.accent.opacity(0.18) : .clear, radius: 8, y: 2)

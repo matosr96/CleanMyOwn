@@ -109,7 +109,7 @@ struct MenuBarPanel: View {
                 }
             }
 
-            Divider().overlay(Color.white.opacity(0.08))
+            Divider().overlay(Theme.onSurface(0.08))
 
             // Avisos inteligentes (opt-in)
             Toggle(isOn: $engagement.enabled) {
@@ -169,7 +169,7 @@ struct MenuBarPanel: View {
                 Spacer()
             }
             .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.04)))
+            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.onSurface(0.04)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

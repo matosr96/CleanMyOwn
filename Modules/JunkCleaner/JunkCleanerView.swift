@@ -156,7 +156,7 @@ struct JunkCleanerView: View {
             HStack(spacing: 14) {
                 ForEach(0..<3, id: \.self) { _ in
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.white.opacity(0.06))
+                        .fill(Theme.onSurface(0.06))
                         .frame(height: 70)
                         .shimmering()
                 }
@@ -354,12 +354,12 @@ struct JunkCleanerView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: Theme.cornerLarge, style: .continuous)
-                .stroke(Color.white.opacity(0.04), lineWidth: 1)
+                .stroke(Theme.onSurface(0.04), lineWidth: 1)
         )
     }
 
     private var divider: some View {
-        Rectangle().fill(Color.white.opacity(0.06)).frame(width: 1, height: 36)
+        Rectangle().fill(Theme.onSurface(0.06)).frame(width: 1, height: 36)
     }
 
     private func summaryStat(label: String, value: String, tint: Color) -> some View {
@@ -524,7 +524,7 @@ private struct JunkCategoryRow: View {
                 GeometryReader { geo in
                     let fraction = CGFloat(result.totalBytes) / CGFloat(service.totalBytes)
                     ZStack(alignment: .leading) {
-                        Capsule().fill(Color.white.opacity(0.05))
+                        Capsule().fill(Theme.onSurface(0.05))
                         Capsule()
                             .fill(LinearGradient(
                                 colors: [result.category.tint, result.category.tint.opacity(0.45)],
@@ -540,12 +540,12 @@ private struct JunkCategoryRow: View {
             }
 
             if expanded {
-                Divider().background(Color.white.opacity(0.06))
+                Divider().background(Theme.onSurface(0.06))
                 VStack(spacing: 0) {
                     ForEach(result.items) { item in
                         JunkItemRow(item: item, service: service, tint: result.category.tint)
                         if item.id != result.items.last?.id {
-                            Divider().background(Color.white.opacity(0.04))
+                            Divider().background(Theme.onSurface(0.04))
                         }
                     }
                 }
@@ -619,7 +619,7 @@ private struct JunkItemRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 9)
-        .background(hovering ? Color.white.opacity(0.03) : Color.clear)
+        .background(hovering ? Theme.onSurface(0.03) : Color.clear)
         .onHover { hovering = $0 }
         .animation(Anim.hover, value: hovering)
     }
@@ -649,7 +649,7 @@ struct CheckboxToggleStyle: ToggleStyle {
         Button(action: { configuration.isOn.toggle() }) {
             ZStack {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .stroke(configuration.isOn || partial ? tint : Color.white.opacity(0.25), lineWidth: 1.5)
+                    .stroke(configuration.isOn || partial ? tint : Theme.onSurface(0.25), lineWidth: 1.5)
                     .frame(width: 18, height: 18)
                 if configuration.isOn {
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
