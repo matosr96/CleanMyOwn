@@ -12,6 +12,7 @@ import SwiftUI
 struct MemoryFreerView: View {
     @StateObject private var service = MemoryService()
     @EnvironmentObject private var admin: AdminSessionService
+    @EnvironmentObject private var history: CleaningHistoryService
     @State private var showResult = false
 
     private let cyan = Color(red: 0.30, green: 0.85, blue: 0.95)
@@ -215,6 +216,8 @@ struct MemoryFreerView: View {
     private func runPurge() async {
         await service.purge(adminSession: admin)
         if service.lastError == nil {
+            history.record(kind: .memory, freedBytes: service.lastFreedBytes,
+                           itemCount: 0, mode: .none, summary: "RAM liberada")
             showResult = true
         }
     }

@@ -15,6 +15,8 @@ struct DashboardView: View {
     @StateObject private var systemInfo = SystemInfoService()
     @EnvironmentObject private var permissions: PermissionsMonitor
     @EnvironmentObject private var junk: JunkScanService
+    @EnvironmentObject private var history: CleaningHistoryService
+    @State private var showingHistory = false
 
     var body: some View {
         ZStack {
@@ -183,21 +185,43 @@ struct DashboardView: View {
     // MARK: - Header (greeting hero)
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("TU MAC")
-                .font(.label).foregroundStyle(Theme.textTertiary)
-                .tracking(2)
-            Text(greeting)
-                .font(.heroTitle)
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [.white, Color(white: 0.75)],
-                        startPoint: .top, endPoint: .bottom
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("TU MAC")
+                    .font(.label).foregroundStyle(Theme.textTertiary)
+                    .tracking(2)
+                Text(greeting)
+                    .font(.heroTitle)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.white, Color(white: 0.75)],
+                            startPoint: .top, endPoint: .bottom
+                        )
                     )
-                )
-            Text(subgreeting)
-                .font(.bodyMedium)
+                Text(subgreeting)
+                    .font(.bodyMedium)
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            Spacer()
+            Button(action: { showingHistory = true }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "clock.arrow.circlepath")
+                    if history.totalFreedDiskBytes > 0 {
+                        Text(history.totalFreedDiskBytes.formattedAsBytes)
+                            .monospacedDigit()
+                    }
+                }
+                .font(.bodyMedium.weight(.semibold))
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(RoundedRectangle(cornerRadius: 9).fill(Color.white.opacity(0.06)))
                 .foregroundStyle(Theme.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .help("Historial de limpiezas — total liberado")
+            .accessibilityLabel("Historial de limpiezas")
+        }
+        .sheet(isPresented: $showingHistory) {
+            HistorySheet()
         }
     }
 

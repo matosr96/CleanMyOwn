@@ -89,6 +89,19 @@ final class HelperService: NSObject, HelperXPCProtocol {
         let result = ShellRunner.runSync("/usr/sbin/purge", [])
         reply(result.exitCode, [result.stdout, result.stderr].filter { !$0.isEmpty }.joined(separator: "\n"))
     }
+
+    func flushDNSCache(reply: @escaping (Int32, String) -> Void) {
+        let flush = ShellRunner.runSync("/usr/bin/dscacheutil", ["-flushcache"])
+        let hup = ShellRunner.runSync("/usr/bin/killall", ["-HUP", "mDNSResponder"])
+        let code: Int32 = flush.exitCode != 0 ? flush.exitCode : hup.exitCode
+        let output = [flush.stderr, hup.stderr].filter { !$0.isEmpty }.joined(separator: "\n")
+        reply(code, output)
+    }
+
+    func reindexSpotlight(reply: @escaping (Int32, String) -> Void) {
+        let result = ShellRunner.runSync("/usr/bin/mdutil", ["-E", "/"])
+        reply(result.exitCode, [result.stdout, result.stderr].filter { !$0.isEmpty }.joined(separator: "\n"))
+    }
 }
 
 final class HelperDelegate: NSObject, NSXPCListenerDelegate {

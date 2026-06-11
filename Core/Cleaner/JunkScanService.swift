@@ -276,6 +276,7 @@ final class JunkScanService: ObservableObject {
     // MARK: - Scan
 
     func startScan() {
+        EngagementService.markScanDate()
         scanTask?.cancel()
         scanWork?.cancel()
         installedIDsWork?.cancel()

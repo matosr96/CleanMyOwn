@@ -47,6 +47,7 @@ struct ContentView: View {
                     case .uninstaller:  UninstallerView()
                     case .largeFiles:   LargeFilesView()
                     case .memoryFreer:  MemoryFreerView()
+                    case .maintenance:  MaintenanceView()
                     case .loginItems:   LoginItemsView()
                     }
                 }

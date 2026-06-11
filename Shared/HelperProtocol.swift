@@ -17,8 +17,11 @@ public enum HelperConstants {
     public static let machServiceName = "com.matos.CleanMyOwn.helper"
     /// Nombre del plist dentro de Contents/Library/LaunchDaemons.
     public static let plistName = "com.matos.CleanMyOwn.helper.plist"
-    /// Versión del protocolo — la app la verifica al conectar.
-    public static let version = 1
+    /// Versión del protocolo — la app la verifica al conectar. Si el daemon
+    /// instalado responde con una versión menor, la app lo marca como
+    /// desactualizado (UI ofrece Reinstalar) y cae a AEWP.
+    /// v2: añade flushDNSCache y reindexSpotlight (módulo Mantenimiento).
+    public static let version = 2
     /// Requirement de firma exigido al cliente cuando NO hay equipo (firma
     /// ad-hoc): sólo se puede anclar el identifier. Ver README para los
     /// límites de esta validación y por qué los verbos estrechos + allowlist
@@ -47,6 +50,10 @@ public enum HelperConstants {
     func deleteTimeMachineSnapshot(date: String, reply: @escaping (Int32, String) -> Void)
     /// `/usr/sbin/purge`.
     func purgeMemory(reply: @escaping (Int32, String) -> Void)
+    /// Vacía la caché de DNS (`dscacheutil -flushcache` + HUP a mDNSResponder).
+    func flushDNSCache(reply: @escaping (Int32, String) -> Void)
+    /// Reindexa Spotlight en el volumen raíz (`mdutil -E /`).
+    func reindexSpotlight(reply: @escaping (Int32, String) -> Void)
 }
 
 public enum HelperValidation {

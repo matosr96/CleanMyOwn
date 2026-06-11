@@ -30,6 +30,7 @@ struct UninstallerView: View {
     @State private var resultIsSuccess = true
     @AppStorage(DeleteMode.storageKey) private var deleteToTrash = false
     @State private var sortBySize = false
+    @EnvironmentObject private var history: CleaningHistoryService
 
     private var filteredApps: [AppEntry] {
         var apps = catalog.apps
@@ -403,6 +404,13 @@ struct UninstallerView: View {
         }
 
         isUninstalling = false
+
+        if result.freedBytes > 0 || result.appRemoved {
+            history.record(kind: .uninstall, freedBytes: result.freedBytes,
+                           itemCount: toRemove.count + (result.appRemoved ? 1 : 0),
+                           mode: deleteToTrash ? .trash : .permanent,
+                           summary: app.name)
+        }
 
         let killedNote = result.processesKilled > 0
             ? " Cerré \(result.processesKilled) proceso\(result.processesKilled == 1 ? "" : "s") activo\(result.processesKilled == 1 ? "" : "s") antes de borrar."

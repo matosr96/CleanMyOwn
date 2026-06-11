@@ -66,6 +66,8 @@ struct SmartScanButton: View {
         .onHover { hovering = $0 }
         .animation(Anim.hover, value: hovering)
         .disabled(isScanning)
+        .accessibilityLabel(isScanning ? "Escaneando tu Mac" : "Iniciar Smart Scan")
+        .accessibilityHint("Revisa cachés, registros, papelera y archivos temporales")
     }
 
     private var ring: some View {

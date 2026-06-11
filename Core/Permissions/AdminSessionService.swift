@@ -254,6 +254,25 @@ final class AdminSessionService: ObservableObject {
         )
     }
 
+    /// Vacía la caché de DNS (asistente; o AEWP con sh para encadenar el HUP).
+    @discardableResult
+    func flushDNSCache() async -> PrivilegedResult {
+        await runEscalated(
+            helperCall: { proxy, reply in proxy.flushDNSCache(reply: reply) },
+            aewpTool: "/bin/sh",
+            aewpArgs: ["-c", "/usr/bin/dscacheutil -flushcache && /usr/bin/killall -HUP mDNSResponder"]
+        )
+    }
+
+    /// Reindexa Spotlight en el volumen raíz.
+    @discardableResult
+    func reindexSpotlight() async -> PrivilegedResult {
+        await runEscalated(
+            helperCall: { proxy, reply in proxy.reindexSpotlight(reply: reply) },
+            aewpTool: "/usr/bin/mdutil", aewpArgs: ["-E", "/"]
+        )
+    }
+
     /// Ejecuta una operación privilegiada con la mejor vía disponible y SIN
     /// colgarse nunca: el asistente XPC si responde (rápido, sin contraseña),
     /// y AEWP como respaldo garantizado (un prompt) si el asistente no está
@@ -267,12 +286,14 @@ final class AdminSessionService: ObservableObject {
         // 1) Asistente, si está instalado y no lo hemos descartado ya.
         if helperEnabled {
             // Primer uso de la sesión: ping rápido para saber si el daemon
-            // contesta (3 s). Si no, no lo reintentamos más esta sesión.
+            // contesta (3 s) Y si habla la versión actual del protocolo. Un
+            // daemon de versión vieja no entiende los verbos nuevos — se
+            // trata como roto (la UI ofrece Reinstalar) y se cae a AEWP.
             if helperResponsive == nil {
                 let ping = await callHelper(timeout: 3) { proxy, reply in
                     proxy.version { v in reply(Int32(v), "") }
                 }
-                helperResponsive = (ping.exitCode != Self.xpcTransportFailure)
+                helperResponsive = (ping.exitCode == Int32(HelperConstants.version))
             }
             if helperResponsive == true {
                 let r = await callHelper(timeout: 30, helperCall)

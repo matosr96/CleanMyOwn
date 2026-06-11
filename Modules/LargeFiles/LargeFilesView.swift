@@ -18,6 +18,7 @@ struct LargeFilesView: View {
     @State private var resultMessage = ""
     @State private var resultHadErrors = false
     @AppStorage(DeleteMode.storageKey) private var deleteToTrash = false
+    @EnvironmentObject private var history: CleaningHistoryService
 
     enum Tab { case large, dupes }
 
@@ -247,8 +248,12 @@ struct LargeFilesView: View {
 
     private func runDelete() async {
         isDeleting = true
+        let plannedItems = service.selection.count
         let freed = await service.deleteSelected(moveToTrash: deleteToTrash)
         isDeleting = false
+        history.record(kind: .largeFiles, freedBytes: freed, itemCount: plannedItems,
+                       mode: deleteToTrash ? .trash : .permanent,
+                       summary: "\(plannedItems) archivo\(plannedItems == 1 ? "" : "s")")
         let verb = deleteToTrash
             ? "Se enviaron \(freed.formattedAsBytes) a la Papelera"
             : "Se liberaron \(freed.formattedAsBytes)"

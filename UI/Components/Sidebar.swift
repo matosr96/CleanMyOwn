@@ -17,6 +17,7 @@ enum AppModule: String, CaseIterable, Identifiable {
     case uninstaller = "Desinstalador"
     case largeFiles = "Archivos grandes"
     case memoryFreer = "Memoria"
+    case maintenance = "Mantenimiento"
     case loginItems = "Arranque"
 
     var id: String { rawValue }
@@ -28,6 +29,7 @@ enum AppModule: String, CaseIterable, Identifiable {
         case .uninstaller:  return "shippingbox.fill"
         case .largeFiles:   return "doc.zipper"
         case .memoryFreer:  return "memorychip.fill"
+        case .maintenance:  return "wrench.and.screwdriver.fill"
         case .loginItems:   return "power"
         }
     }
@@ -39,6 +41,7 @@ enum AppModule: String, CaseIterable, Identifiable {
         case .uninstaller:  return Theme.warning
         case .largeFiles:   return Color(red: 0.85, green: 0.50, blue: 1.0)
         case .memoryFreer:  return Color(red: 0.30, green: 0.85, blue: 0.95)
+        case .maintenance:  return Color(red: 0.35, green: 0.88, blue: 0.72)
         case .loginItems:   return Theme.danger
         }
     }
@@ -51,6 +54,7 @@ enum AppModule: String, CaseIterable, Identifiable {
         case .uninstaller:  return "Apps y sus restos"
         case .largeFiles:   return "Pesados y duplicados"
         case .memoryFreer:  return "Liberar RAM"
+        case .maintenance:  return "Puesta a punto"
         case .loginItems:   return "Apps en segundo plano"
         }
     }
@@ -187,6 +191,9 @@ private struct RailItem: View {
         .onHover { hovering = $0 }
         .animation(Anim.snappy, value: hovering)
         .help(showsAlert ? "\(module.rawValue) — \(alertText) de basura encontrada" : "\(module.rawValue) · \(module.subtitle)")
+        .accessibilityLabel(module.rawValue)
+        .accessibilityHint(module.subtitle)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

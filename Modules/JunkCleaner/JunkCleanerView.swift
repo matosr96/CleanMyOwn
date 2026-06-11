@@ -20,6 +20,7 @@ struct JunkCleanerView: View {
     @State private var resultMessage = ""
     @AppStorage(DeleteMode.storageKey) private var deleteToTrash = false
     @EnvironmentObject private var permissions: PermissionsMonitor
+    @EnvironmentObject private var history: CleaningHistoryService
 
     // Hero moment al completar limpieza exitosa
     @State private var showingHero: Bool = false
@@ -434,8 +435,15 @@ struct JunkCleanerView: View {
             }
         }
 
+        let plannedItems = service.selection.count
+        let plannedCategories = service.results.filter { res in
+            res.items.contains { service.selection.contains($0.id) }
+        }.count
         let freed = await service.cleanSelected(adminSession: admin, moveToTrash: deleteToTrash)
         isCleaning = false
+        history.record(kind: .junk, freedBytes: freed, itemCount: plannedItems,
+                       mode: deleteToTrash ? .trash : .permanent,
+                       summary: "\(plannedCategories) categoría\(plannedCategories == 1 ? "" : "s")")
         if let err = service.lastError {
             // Caso con errores: alert
             let verb = deleteToTrash ? "Se enviaron \(freed.formattedAsBytes) a la Papelera" : "Se liberaron \(freed.formattedAsBytes)"
