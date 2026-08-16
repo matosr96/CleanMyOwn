@@ -1,0 +1,4 @@
+  claude/upbeat-mahavira-519fe9 943c6c8 [origin/main: behind 20] Add MIT LICENSE file
+* main                          37fa0ab [origin/main] feat(themes): Sistema/Claro/Oscuro/Multicolor + ventana de Ajustes nativa
+  remotes/origin/HEAD           -> origin/main
+  remotes/origin/main           37fa0ab feat(themes): Sistema/Claro/Oscuro/Multicolor + ventana de Ajustes nativa

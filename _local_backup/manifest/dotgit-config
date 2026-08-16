@@ -1,0 +1,23 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+	ignorecase = true
+	precomposeunicode = true
+[user]
+	email = 19matos96@gmail.com
+	name = matosr96
+[remote "origin"]
+	url = git@github.com:matosr96/CleanMyOwn.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+	vscode-merge-base = origin/main
+[branch "claude/upbeat-mahavira-519fe9"]
+	remote = origin
+	merge = refs/heads/main
+	vscode-merge-base = origin/main
+[extensions]
+	worktreeConfig = true

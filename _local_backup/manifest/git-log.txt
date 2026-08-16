@@ -1,0 +1,25 @@
+* 37fa0ab (HEAD -> main, origin/main, origin/HEAD) feat(themes): Sistema/Claro/Oscuro/Multicolor + ventana de Ajustes nativa
+* bf449c3 feat(p1): historial de limpieza, módulo Mantenimiento, companion de menubar y avisos opt-in
+* ec87865 fix(uninstaller): el asistente deja de ser punto único de fallo — no más cuelgue al desinstalar apps protegidas
+* 7974d2c feat(ui): concepto glass — rail de iconos, lienzo teñido por módulo y orbe 3D de escaneo
+* 4698132 feat(ux): items del sidebar con jerarquía viva — tarjeta expandible y datos en vivo
+* b91d695 feat(ux): un solo lienzo — sidebar integrado + transición direccional y cascada
+* 23a8f5b feat(brand): marca propia SweepGlyph + sidebar sobrio y nativo
+* cb38e2f feat(ux): copys profesionales para cualquier usuario + sidebar con animaciones 3D
+* 3d1386f fix(ux): fondo animado único y persistente — fin del 'asentamiento' al cambiar de vista
+* e448424 fix(ux): layout consistente entre vistas — Memoria seguía otro patrón
+* 05cc7de feat(ux): pasada completa vista a vista — simple pero potente
+* 3f21507 feat(ui): rediseño data-viz del Dashboard — densidad, semántica y barra segmentada
+* 60fab2c feat(ui): Smart Scan hero, barras de proporción e icono de app propio
+* bb62ac0 feat(signing): firma con identidad real + requirement XPC anclado al equipo
+* 8c92def feat(ux): cero fricción de permisos + identidad visual por módulo
+* 399a77a fix(ui): macOS reporta .notFound antes del primer registro del helper — mostrar invitación a instalar en vez de 'no incluido en el bundle'
+* 291fb3b feat: helper privilegiado opcional vía SMAppService.daemon + XPC
+* 7b38d7e feat: modo opcional de borrado a Papelera (toggle persistente)
+* e17b192 docs: README reflects audit hardening — exit-code wrapper, allowlist, safe defaults, tests
+* 06de260 fix: hardening integral post-auditoría — corrección, seguridad y tests
+* 943c6c8 (claude/upbeat-mahavira-519fe9) Add MIT LICENSE file
+* 62bc604 Rewrite README for portfolio: pitch, tech stack, engineering decisions
+* b7c286d feat(ui): visual revamp completo — foundation + hero moments + audit
+* dad6c0c docs: README completo con secciones de permisos, módulos y troubleshooting
+* 89dfafd Initial commit: CleanMyOwn — limpieza/optimización para macOS

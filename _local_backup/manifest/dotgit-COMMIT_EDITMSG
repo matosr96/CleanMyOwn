@@ -1,0 +1,29 @@
+feat(themes): Sistema/Claro/Oscuro/Multicolor + ventana de Ajustes nativa
+
+Sistema de temas estándar de industria:
+- ThemeManager: 4 temas con resolución pura testeable. Sistema sigue la
+  apariencia de macOS en vivo (AppleInterfaceThemeChangedNotification);
+  Multicolor es la firma (base oscura + lienzo a plena intensidad con
+  tinte por módulo); Oscuro deja el fondo en calma (sin tinte, 0.16);
+  Claro con paleta completa propia (texto, cards, semánticos oscurecidos
+  para contraste, sombras suaves).
+- Theme.* pasa de constantes a propiedades computadas contra la paleta
+  activa — los ~40 archivos que lo usan se adaptan sin tocarse; el cambio
+  reconstruye el árbol vía .id(themeKey) y preferredColorScheme deja de
+  forzar .dark (los materiales del sistema se adaptan solos).
+- Barrido de 48 'Color.white.opacity' → Theme.onSurface() (blanco en
+  oscuro, negro en claro): bordes, tracks, fills y separadores correctos
+  en ambos lados. Los blancos físicos (especular del orbe, glifo sobre
+  gradiente) se quedan blancos a propósito.
+- Lienzo por tema: intensidad y tinte del AnimatedBackground los decide
+  el ThemeManager.
+
+Ajustes (estándar macOS — ⌘, y menú Ajustes…):
+- Escena Settings con tabs Apariencia / General / Asistente / Acerca de.
+- Apariencia: grid de 4 temas con mini-preview de lienzo y check.
+- General: modo Papelera por defecto, avisos inteligentes y resumen del
+  historial. Asistente: estado/instalación. Acerca de: marca + versión.
+- Acceso visible: engranaje en el rail (SettingsLink).
+
+Verificado en vivo: cambio a Claro re-tematiza TODA la app al instante.
+35 tests en verde (resolución de temas incluida).

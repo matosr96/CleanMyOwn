@@ -1,0 +1,6 @@
+Rama original:  main
+Commit original: 37fa0ab358ca742c3a44b7ea6679cf26f58dff17
+Rama de backup: backup/pre-format-2026-08-16
+Fecha:          2026-08-16
+Remote:         git@github.com:matosr96/CleanMyOwn.git
+Ruta local:     /Users/matos/repositorios/files/CleanMyOwn

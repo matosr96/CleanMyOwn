@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(swift run *)",
+      "Bash(pkill -f \"\\\\.build/arm64-apple-macosx/debug/CleanMyOwn\")",
+      "Bash(pkill -x CleanMyOwn)",
+      "Bash(swift build *)",
+      "Bash(codesign --force --deep --sign - CleanMyOwn.app)",
+      "Bash(codesign --verify --verbose CleanMyOwn.app)",
+      "Bash(open CleanMyOwn.app)",
+      "Bash(osascript -e 'tell application \"System Events\" to get name of every process whose name contains \"CleanMyOwn\"')",
+      "Bash(osascript -e 'tell application \"System Events\" to tell process \"CleanMyOwn\" to get count of windows')",
+      "Bash(osascript -e 'tell application \"System Events\" to tell process \"CleanMyOwn\" to get name of every window')",
+      "Bash(open -a /Users/matos/repositorios/files/CleanMyOwn/CleanMyOwn.app)",
+      "Bash(chmod +x run.sh)",
+      "Bash(./run.sh)",
+      "Bash(ls -le@O /Applications | head -10; echo \"---\"; echo \"uid=$\\(id -u\\) gid=$\\(id -g\\) groups=$\\(id -G\\)\")",
+      "Bash(mdfind 'kMDItemContentType == \"com.apple.application-bundle\"')",
+      "Bash(ls -d /Applications/*.app 2>/dev/null | grep -iE \"\\(whisky|utm|upnote|nitro|whatsapp|ababe|unzip\\)\"; echo \"---\"; ls -d ~/Applications/*.app 2>/dev/null | grep -iE \"\\(whisky|utm|upnote|nitro|whatsapp|ababe|unzip\\)\")",
+      "Bash(defaults delete *)",
+      "Bash(open -R /Users/matos/repositorios/files/CleanMyOwn/CleanMyOwn.app)",
+      "Bash(gh auth *)",
+      "Bash(git --version)",
+      "Bash(git init *)",
+      "Bash(git config *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(gh repo *)",
+      "Bash(git push *)",
+      "Bash(git -C /Users/matos/repositorios/files/CleanMyOwn ls-files)"
+    ]
+  }
+}

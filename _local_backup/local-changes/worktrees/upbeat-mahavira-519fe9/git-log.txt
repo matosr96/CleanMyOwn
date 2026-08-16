@@ -1,0 +1,5 @@
+943c6c8 Add MIT LICENSE file
+62bc604 Rewrite README for portfolio: pitch, tech stack, engineering decisions
+b7c286d feat(ui): visual revamp completo — foundation + hero moments + audit
+dad6c0c docs: README completo con secciones de permisos, módulos y troubleshooting
+89dfafd Initial commit: CleanMyOwn — limpieza/optimización para macOS
