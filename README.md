@@ -12,6 +12,20 @@ CleanMyOwn is a SwiftUI desktop app that scans, cleans, and maintains a macOS sy
 
 ---
 
+## Install
+
+[**Download the latest release**](https://github.com/matosr96/CleanMyOwn/releases/latest) — macOS 14 or later, Apple Silicon only (the build is not universal). Open the `.dmg` and drag the app to Applications.
+
+The release is **ad-hoc signed and not notarized**, so Gatekeeper refuses it on first launch with an "unidentified developer" message. Right-click the app in Applications and choose **Open**, then **Open** again. If macOS still blocks it:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/CleanMyOwn.app
+```
+
+Because an ad-hoc signature changes on every build, the Full Disk Access grant and the helper approval do not survive replacing the app — you will grant them again after each update. Building locally with a signing identity avoids that; see [Build](#build).
+
+---
+
 ## Why
 
 Most macOS cleaners fall into one of three traps: they ship an always-on privileged helper that can run anything as root, they shell out to `osascript` and trigger a password prompt for every action, or they delete blindly and leave the Dock full of zombie icons. CleanMyOwn skips all three: no prompt-per-action, process-aware deletes, and root access that is either a session-scoped `AuthorizationRef` or an opt-in helper that only understands four narrow verbs gated by an allowlist.
