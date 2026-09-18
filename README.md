@@ -2,6 +2,7 @@
 
 > **A native macOS cleaner and maintenance app.** SwiftUI, 100% local, no telemetry. Inspired by CleanMyMac.
 
+[![Download](https://img.shields.io/github/v/release/matosr96/CleanMyOwn?color=success&label=download)](https://github.com/matosr96/CleanMyOwn/releases/latest)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue.svg)](https://www.apple.com/macos/)
 [![Swift 6](https://img.shields.io/badge/Swift-6-orange.svg)](https://swift.org)
 [![SwiftUI](https://img.shields.io/badge/SwiftUI-✓-blueviolet.svg)](https://developer.apple.com/swiftui/)
